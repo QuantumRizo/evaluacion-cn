@@ -89,9 +89,9 @@ export default function EvaluationsPage() {
           const hasComment = myComments.some(c => 
             c.cycle_id === cycle.$id && 
             c.evaluated_id === currentEmployee.$id &&
-            c.comment?.trim().length > 0 &&
-            c.strengths?.trim().length > 0 &&
-            c.opportunities?.trim().length > 0
+            (c.comment?.trim()?.length ?? 0) > 0 &&
+            (c.strengths?.trim()?.length ?? 0) > 0 &&
+            (c.opportunities?.trim()?.length ?? 0) > 0
           );
           const done = hasResponses && hasComment;
           generatedTasks.push({
@@ -112,9 +112,9 @@ export default function EvaluationsPage() {
           const hasComment = myComments.some(c => 
             c.cycle_id === cycle.$id && 
             c.evaluated_id === a.evaluated_id &&
-            c.comment?.trim().length > 0 &&
-            c.strengths?.trim().length > 0 &&
-            c.opportunities?.trim().length > 0
+            (c.comment?.trim()?.length ?? 0) > 0 &&
+            (c.strengths?.trim()?.length ?? 0) > 0 &&
+            (c.opportunities?.trim()?.length ?? 0) > 0
           );
           const done = hasResponses && hasComment;
           const targetEmployee = allEmps.find(e => e.$id === a.evaluated_id);
