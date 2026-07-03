@@ -192,7 +192,7 @@ export default function AdminDashboard() {
                 onSelectCycle={setSelectedResultCycleId}
                 employees={resultsStats}
                 allEmployees={allEmployees}
-                onViewReport={(cycleId, empId) => navigate(`/admin/report/${cycleId}/${empId}`)}
+                onViewReport={(cycleId, empId) => navigate(`/admin/reporte/${cycleId}/${empId}`)}
                 cycleData={cycleData}
                 allQuestions={allQuestions}
               />
