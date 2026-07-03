@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { databases, fetchAllDocuments, Query, functions } from '../../lib/appwrite';
 import { ID } from 'appwrite';
-import { DB_ID, COLLECTIONS } from '../../lib/constants';
+import { DB_ID, COLLECTIONS, CATEGORY_ORDER, CATEGORY_LABELS } from '../../lib/constants';
 import Navbar from '../../components/Navbar';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import type { Employee, EvaluationCycle, Response, EvaluationAssignment } from '../../types';
@@ -978,6 +978,74 @@ function ResultsTab({
                     </div>
                   </div>
 
+
+                  {evResponses.length > 0 && (
+                    <div className="px-7 py-6 bg-surface-50/50 border-b border-surface-100">
+                      {/* Top 3 and Bottom 3 */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <div>
+                          <h3 className="text-xs font-semibold uppercase tracking-wider text-green-700 mb-3 flex items-center gap-2">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+                            Top 3 Fortalezas
+                          </h3>
+                          <ul className="space-y-2">
+                            {[...evResponses]
+                              .sort((a, b) => b.score - a.score)
+                              .slice(0, 3)
+                              .map((r, i) => {
+                                const q = questions.find(q => q.$id === r.question_id);
+                                return (
+                                  <li key={i} className="text-sm text-surface-700 flex items-start gap-2">
+                                    <span className="font-bold text-green-600 w-8 shrink-0">{Math.round(r.score * 100)}%</span>
+                                    <span>{q?.text}</span>
+                                  </li>
+                                );
+                              })}
+                          </ul>
+                        </div>
+                        <div>
+                          <h3 className="text-xs font-semibold uppercase tracking-wider text-amber-700 mb-3 flex items-center gap-2">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" /></svg>
+                            Top 3 Áreas de Oportunidad
+                          </h3>
+                          <ul className="space-y-2">
+                            {[...evResponses]
+                              .sort((a, b) => a.score - b.score)
+                              .slice(0, 3)
+                              .map((r, i) => {
+                                const q = questions.find(q => q.$id === r.question_id);
+                                return (
+                                  <li key={i} className="text-sm text-surface-700 flex items-start gap-2">
+                                    <span className="font-bold text-amber-600 w-8 shrink-0">{Math.round(r.score * 100)}%</span>
+                                    <span>{q?.text}</span>
+                                  </li>
+                                );
+                              })}
+                          </ul>
+                        </div>
+                      </div>
+
+                      {/* Resultados por Categoría */}
+                      <div>
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">Resultados por Categoría</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          {CATEGORY_ORDER.map(cat => {
+                            const catQuestions = questions.filter(q => q.category === cat);
+                            const catResponses = evResponses.filter(r => catQuestions.some(q => q.$id === r.question_id));
+                            if (catResponses.length === 0) return null;
+                            const catScore = catResponses.reduce((acc, r) => acc + r.score, 0) / catResponses.length;
+                            const color = catScore >= 0.75 ? 'text-green-700 bg-green-50 border-green-200' : catScore >= 0.50 ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-red-700 bg-red-50 border-red-200';
+                            return (
+                              <div key={cat} className={`p-3 rounded-xl border ${color} flex flex-col justify-between`}>
+                                <span className="text-[10px] font-bold uppercase tracking-wider mb-2 opacity-80">{CATEGORY_LABELS[cat]}</span>
+                                <span className="text-lg font-bold">{Math.round(catScore * 100)}%</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   <div className="px-7 py-6">
                     <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-400 mb-4">Respuestas por pregunta</h3>
                 {questions.length === 0 ? (
