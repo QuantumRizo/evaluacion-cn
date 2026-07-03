@@ -69,7 +69,12 @@ export default function EvaluationFormPage() {
 
         if (existingComment.total > 0) {
           const doc = existingComment.documents[0] as unknown as EvaluationComment;
-          setAlreadyCommented(true);
+          
+          const hasAllComments = (doc.comment?.trim().length ?? 0) > 0 && 
+                                 (doc.strengths?.trim().length ?? 0) > 0 && 
+                                 (doc.opportunities?.trim().length ?? 0) > 0;
+
+          setAlreadyCommented(hasAllComments);
           setExistingCommentDoc(doc);
           setComment(doc.comment ?? '');
           setStrengths(doc.strengths ?? '');
