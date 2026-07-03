@@ -893,7 +893,7 @@ function ResultsTab({
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary-200 bg-primary-50 text-primary-700 hover:bg-primary-100 text-xs font-medium transition-colors"
                             >
                               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                              Ver respuestas
+                              Ver reporte
                             </button>
                           ) : (
                             <span className="text-xs text-surface-300">—</span>
@@ -924,7 +924,7 @@ function ResultsTab({
             onClick={() => setSelectedEvaluatorId(null)}
           >
             <div
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col"
               onClick={e => e.stopPropagation()}
             >
               {/* Modal Header */}
@@ -950,9 +950,36 @@ function ResultsTab({
                 </button>
               </div>
 
-              {/* Questions */}
-              <div className="px-7 py-5 space-y-3">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-400 mb-4">Respuestas por Pregunta</h3>
+                <div className="flex-1 overflow-y-auto">
+                  {/* Resumen / KPIs */}
+                  <div className="px-7 py-5 bg-surface-50 border-b border-surface-100 flex items-center justify-between">
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-1">Resumen de la evaluación</h3>
+                      <p className="text-sm text-surface-600">Basado en las {evResponses.length} respuestas proporcionadas.</p>
+                    </div>
+                    <div className="flex items-center gap-6">
+                      <div className="text-center">
+                        <p className="text-[10px] font-bold text-surface-400 uppercase tracking-widest mb-0.5">Completitud</p>
+                        <p className="text-xl font-bold text-surface-800">{evResponses.length > 0 ? '100%' : '0%'}</p>
+                      </div>
+                      <div className="w-px h-8 bg-surface-200"></div>
+                      <div className="text-center">
+                        <p className="text-[10px] font-bold text-surface-400 uppercase tracking-widest mb-0.5">Calificación Promedio</p>
+                        <p className={`text-xl font-bold ${evResponses.length === 0 ? 'text-surface-400' : (() => {
+                          const avg = evResponses.reduce((acc, r) => acc + r.score, 0) / evResponses.length;
+                          return avg >= 0.75 ? 'text-green-600' : avg >= 0.50 ? 'text-amber-600' : 'text-red-600';
+                        })()}`}>
+                          {evResponses.length > 0 
+                            ? Math.round((evResponses.reduce((acc, r) => acc + r.score, 0) / evResponses.length) * 100) + '%' 
+                            : 'N/A'
+                          }
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="px-7 py-6">
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-400 mb-4">Respuestas por pregunta</h3>
                 {questions.length === 0 ? (
                   <p className="text-surface-500 text-sm">Cargando preguntas...</p>
                 ) : (
