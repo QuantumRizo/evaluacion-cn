@@ -1039,6 +1039,7 @@ function ResultsTab({
               </div>
             </div>
           </div>
+        </div>
         );
       })()}
     </div>
