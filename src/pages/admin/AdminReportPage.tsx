@@ -161,6 +161,7 @@ export default function AdminReportPage() {
     if (!employee || !cycle || questions.length === 0) return;
 
     const questionHeaders = questions.map(q => `"${q.text.replace(/"/g, '""')}"`);
+    const categoryHeaders = CATEGORY_ORDER.map(cat => `"${CATEGORY_LABELS[cat]}"`);
     const headers = [
       'Evaluado', 
       'Área del Evaluado', 
@@ -168,6 +169,13 @@ export default function AdminReportPage() {
       'Área del Evaluador', 
       'Tipo de Evaluación',
       ...questionHeaders,
+      'Top 1 Fortaleza',
+      'Top 2 Fortaleza',
+      'Top 3 Fortaleza',
+      'Top 1 Oportunidad',
+      'Top 2 Oportunidad',
+      'Top 3 Oportunidad',
+      ...categoryHeaders,
       'Comentario General',
       'Fortalezas',
       'Oportunidades',
@@ -191,9 +199,46 @@ export default function AdminReportPage() {
         `"${isSelf ? 'Autoevaluacion' : 'Colectiva'}"`
       ];
 
+      const evResponses = responses.filter(r => r.evaluator_id === evId);
       questions.forEach(q => {
-        const resp = responses.find(r => r.evaluator_id === evId && r.question_id === q.$id);
+        const resp = evResponses.find(r => r.question_id === q.$id);
         row.push(resp ? `"${Math.round(resp.score * 100)}%"` : '"N/A"');
+      });
+
+      // Top 3 Fortalezas
+      const sortedDesc = [...evResponses].sort((a, b) => b.score - a.score);
+      for(let i=0; i<3; i++) {
+        const r = sortedDesc[i];
+        if(r) {
+          const q = questions.find(q => q.$id === r.question_id);
+          row.push(`"${q?.text.replace(/"/g, '""') || ''} (${Math.round(r.score * 100)}%)"`);
+        } else {
+          row.push('""');
+        }
+      }
+
+      // Top 3 Oportunidades
+      const sortedAsc = [...evResponses].sort((a, b) => a.score - b.score);
+      for(let i=0; i<3; i++) {
+        const r = sortedAsc[i];
+        if(r) {
+          const q = questions.find(q => q.$id === r.question_id);
+          row.push(`"${q?.text.replace(/"/g, '""') || ''} (${Math.round(r.score * 100)}%)"`);
+        } else {
+          row.push('""');
+        }
+      }
+
+      // Categorías
+      CATEGORY_ORDER.forEach(cat => {
+        const catQuestions = questions.filter(q => q.category === cat);
+        const catResponses = evResponses.filter(r => catQuestions.some(q => q.$id === r.question_id));
+        if (catResponses.length > 0) {
+          const catScore = catResponses.reduce((acc, r) => acc + r.score, 0) / catResponses.length;
+          row.push(`"${Math.round(catScore * 100)}%"`);
+        } else {
+          row.push('"N/A"');
+        }
       });
 
       const evComment = comments.find(c => c.evaluator_id === evId);

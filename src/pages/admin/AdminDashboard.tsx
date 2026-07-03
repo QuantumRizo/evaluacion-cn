@@ -671,6 +671,7 @@ function ResultsTab({
       const empMap = new Map(allEmployeesData.map(e => [e.$id, e]));
       
       const questionHeaders = allQuestions.map(q => `"${q.text.replace(/"/g, '""')}"`);
+      const categoryHeaders = CATEGORY_ORDER.map(cat => `"${CATEGORY_LABELS[cat]}"`);
       const headers = [
         'Evaluado', 
         'Área del Evaluado', 
@@ -678,6 +679,13 @@ function ResultsTab({
         'Área del Evaluador', 
         'Tipo de Evaluación',
         ...questionHeaders,
+        'Top 1 Fortaleza',
+        'Top 2 Fortaleza',
+        'Top 3 Fortaleza',
+        'Top 1 Oportunidad',
+        'Top 2 Oportunidad',
+        'Top 3 Oportunidad',
+        ...categoryHeaders,
         'Comentario General',
         'Fortalezas',
         'Oportunidades'
@@ -713,9 +721,46 @@ function ResultsTab({
           `"${ev.evaluatedId === ev.evaluatorId ? 'Autoevaluacion' : 'Colectiva'}"`
         ];
         
+        const evResponses = allResponses.filter(r => r.evaluated_id === ev.evaluatedId && r.evaluator_id === ev.evaluatorId);
         allQuestions.forEach(q => {
-          const resp = allResponses.find(r => r.evaluated_id === ev.evaluatedId && r.evaluator_id === ev.evaluatorId && r.question_id === q.$id);
+          const resp = evResponses.find(r => r.question_id === q.$id);
           row.push(resp ? `"${Math.round(resp.score * 100)}%"` : '"N/A"');
+        });
+        
+        // Top 3 Fortalezas
+        const sortedDesc = [...evResponses].sort((a, b) => b.score - a.score);
+        for(let i=0; i<3; i++) {
+          const r = sortedDesc[i];
+          if(r) {
+            const q = allQuestions.find(q => q.$id === r.question_id);
+            row.push(`"${q?.text.replace(/"/g, '""') || ''} (${Math.round(r.score * 100)}%)"`);
+          } else {
+            row.push('""');
+          }
+        }
+
+        // Top 3 Oportunidades
+        const sortedAsc = [...evResponses].sort((a, b) => a.score - b.score);
+        for(let i=0; i<3; i++) {
+          const r = sortedAsc[i];
+          if(r) {
+            const q = allQuestions.find(q => q.$id === r.question_id);
+            row.push(`"${q?.text.replace(/"/g, '""') || ''} (${Math.round(r.score * 100)}%)"`);
+          } else {
+            row.push('""');
+          }
+        }
+
+        // Categorías
+        CATEGORY_ORDER.forEach(cat => {
+          const catQuestions = allQuestions.filter(q => q.category === cat);
+          const catResponses = evResponses.filter(r => catQuestions.some(q => q.$id === r.question_id));
+          if (catResponses.length > 0) {
+            const catScore = catResponses.reduce((acc, r) => acc + r.score, 0) / catResponses.length;
+            row.push(`"${Math.round(catScore * 100)}%"`);
+          } else {
+            row.push('"N/A"');
+          }
         });
         
         const comment = allComments.find(c => c.evaluated_id === ev.evaluatedId && c.evaluator_id === ev.evaluatorId);
