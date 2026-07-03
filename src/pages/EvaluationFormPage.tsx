@@ -20,6 +20,8 @@ export default function EvaluationFormPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Answers>({});
   const [comment, setComment] = useState('');
+  const [strengths, setStrengths] = useState('');
+  const [opportunities, setOpportunities] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submittingComment, setSubmittingComment] = useState(false);
@@ -69,7 +71,9 @@ export default function EvaluationFormPage() {
           const doc = existingComment.documents[0] as unknown as EvaluationComment;
           setAlreadyCommented(true);
           setExistingCommentDoc(doc);
-          setComment(doc.comment);
+          setComment(doc.comment ?? '');
+          setStrengths(doc.strengths ?? '');
+          setOpportunities(doc.opportunities ?? '');
         }
 
         setLoading(false);
@@ -96,7 +100,7 @@ export default function EvaluationFormPage() {
   const answeredCount = Object.keys(answers).length;
   const totalQuestions = questions.length;
   const allAnswered = answeredCount === totalQuestions && totalQuestions > 0;
-  const canSubmit = allAnswered && comment.trim().length > 0;
+  const canSubmit = allAnswered && comment.trim().length > 0 && strengths.trim().length > 0 && opportunities.trim().length > 0;
 
   async function handleSubmit() {
     if (!canSubmit || !cycle || !currentEmployee) return;
@@ -123,6 +127,8 @@ export default function EvaluationFormPage() {
         evaluated_id: evaluatedId,
         evaluation_type: evaluationType,
         comment: comment.trim(),
+        strengths: strengths.trim(),
+        opportunities: opportunities.trim(),
       });
 
       navigate('/evaluaciones', { state: { submitted: true } });
@@ -134,7 +140,7 @@ export default function EvaluationFormPage() {
   }
 
   async function handleSaveComment() {
-    if (!comment.trim() || !cycle || !currentEmployee) return;
+    if (!comment.trim() || !strengths.trim() || !opportunities.trim() || !cycle || !currentEmployee) return;
     setSubmittingComment(true);
     setError('');
 
@@ -145,6 +151,8 @@ export default function EvaluationFormPage() {
         // Update existing comment
         await databases.updateDocument(DB_ID, COLLECTIONS.EVALUATION_COMMENTS, existingCommentDoc.$id, {
           comment: comment.trim(),
+          strengths: strengths.trim(),
+          opportunities: opportunities.trim(),
         });
       } else {
         // Create new comment
@@ -154,6 +162,8 @@ export default function EvaluationFormPage() {
           evaluated_id: evaluatedId,
           evaluation_type: evaluationType,
           comment: comment.trim(),
+          strengths: strengths.trim(),
+          opportunities: opportunities.trim(),
         });
       }
 
@@ -199,8 +209,18 @@ export default function EvaluationFormPage() {
           </p>
           {existingCommentDoc && (
             <div className="bg-white border border-surface-200 rounded-2xl px-5 py-4 text-left mb-6">
-              <p className="text-xs text-surface-400 mb-1">Tu comentario</p>
-              <p className="text-sm text-surface-700 leading-relaxed">{existingCommentDoc.comment}</p>
+              <div className="mb-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-surface-400 mb-1">Comentario General</p>
+                <p className="text-sm text-surface-700 leading-relaxed">{existingCommentDoc.comment || 'N/A'}</p>
+              </div>
+              <div className="mb-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-surface-400 mb-1">Fortalezas</p>
+                <p className="text-sm text-surface-700 leading-relaxed">{existingCommentDoc.strengths || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-surface-400 mb-1">Oportunidades de mejora</p>
+                <p className="text-sm text-surface-700 leading-relaxed">{existingCommentDoc.opportunities || 'N/A'}</p>
+              </div>
             </div>
           )}
           <button
@@ -257,20 +277,42 @@ export default function EvaluationFormPage() {
           {/* Comment only form */}
           <div className="bg-white rounded-2xl border border-surface-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-surface-100">
-              <h3 className="text-sm font-semibold text-surface-800">Comentario abierto</h3>
-              <p className="text-xs text-surface-400 mt-0.5">Opcional — se guardará junto a tu evaluación</p>
+              <h3 className="text-sm font-semibold text-surface-800">Comentarios Adicionales</h3>
+              <p className="text-xs text-surface-400 mt-0.5">Completa los campos para terminar tu evaluación</p>
             </div>
-            <div className="px-6 py-5">
-              <textarea
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                placeholder="Escribe aquí tus observaciones, contexto adicional o retroalimentación..."
-                rows={6}
-                maxLength={2000}
-                className="w-full resize-none rounded-xl border border-surface-200 bg-surface-50 px-4 py-3 text-sm text-surface-700 placeholder-surface-300 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-transparent transition-all"
-              />
-              <div className="flex items-center justify-between mt-2">
-                <p className="text-xs text-surface-300">{comment.length}/2000 caracteres</p>
+            <div className="px-6 py-5 flex flex-col gap-5">
+              <div>
+                <label className="block text-sm font-medium text-surface-700 mb-1">Comentario General</label>
+                <textarea
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  placeholder="Observaciones generales..."
+                  rows={3}
+                  maxLength={2000}
+                  className="w-full resize-none rounded-xl border border-surface-200 bg-surface-50 px-4 py-3 text-sm text-surface-700 placeholder-surface-300 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-transparent transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-surface-700 mb-1">Fortalezas</label>
+                <textarea
+                  value={strengths}
+                  onChange={(e) => setStrengths(e.target.value)}
+                  placeholder="¿Qué hace excepcionalmente bien?"
+                  rows={3}
+                  maxLength={2000}
+                  className="w-full resize-none rounded-xl border border-surface-200 bg-surface-50 px-4 py-3 text-sm text-surface-700 placeholder-surface-300 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-transparent transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-surface-700 mb-1">Oportunidades de Mejora</label>
+                <textarea
+                  value={opportunities}
+                  onChange={(e) => setOpportunities(e.target.value)}
+                  placeholder="¿En qué áreas podría mejorar?"
+                  rows={3}
+                  maxLength={2000}
+                  className="w-full resize-none rounded-xl border border-surface-200 bg-surface-50 px-4 py-3 text-sm text-surface-700 placeholder-surface-300 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-transparent transition-all"
+                />
               </div>
             </div>
           </div>
@@ -286,7 +328,7 @@ export default function EvaluationFormPage() {
             </button>
             <button
               onClick={handleSaveComment}
-              disabled={!comment.trim() || submittingComment}
+              disabled={!comment.trim() || !strengths.trim() || !opportunities.trim() || submittingComment}
               className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary-500 hover:bg-primary-600 disabled:bg-surface-200 disabled:text-surface-400 text-white text-sm font-semibold transition-all duration-200"
             >
               {submittingComment ? (
@@ -394,19 +436,43 @@ export default function EvaluationFormPage() {
         {/* Open comment section */}
         <div className="mt-6 bg-white rounded-2xl border border-surface-200 overflow-hidden">
           <div className="px-6 py-4 border-b border-surface-100">
-            <h3 className="text-sm font-semibold text-surface-800">Comentario abierto</h3>
-            <p className="text-xs text-surface-400 mt-0.5">Opcional — observaciones adicionales sobre esta evaluación</p>
+            <h3 className="text-sm font-semibold text-surface-800">Comentarios Adicionales</h3>
+            <p className="text-xs text-surface-400 mt-0.5">Obligatorio — observaciones y feedback sobre esta evaluación</p>
           </div>
-          <div className="px-6 py-5">
-            <textarea
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder="Escribe aquí tus observaciones, contexto adicional o retroalimentación..."
-              rows={5}
-              maxLength={2000}
-              className="w-full resize-none rounded-xl border border-surface-200 bg-surface-50 px-4 py-3 text-sm text-surface-700 placeholder-surface-300 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-transparent transition-all"
-            />
-            <p className="text-xs text-surface-300 mt-1.5">{comment.length}/2000 caracteres</p>
+          <div className="px-6 py-5 flex flex-col gap-5">
+            <div>
+              <label className="block text-sm font-medium text-surface-700 mb-1">Comentario General</label>
+              <textarea
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="Escribe aquí tus observaciones, contexto adicional o retroalimentación general..."
+                rows={3}
+                maxLength={2000}
+                className="w-full resize-none rounded-xl border border-surface-200 bg-surface-50 px-4 py-3 text-sm text-surface-700 placeholder-surface-300 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-transparent transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-surface-700 mb-1">Fortalezas</label>
+              <textarea
+                value={strengths}
+                onChange={(e) => setStrengths(e.target.value)}
+                placeholder="¿Cuáles son las principales fortalezas?"
+                rows={3}
+                maxLength={2000}
+                className="w-full resize-none rounded-xl border border-surface-200 bg-surface-50 px-4 py-3 text-sm text-surface-700 placeholder-surface-300 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-transparent transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-surface-700 mb-1">Oportunidades de Mejora</label>
+              <textarea
+                value={opportunities}
+                onChange={(e) => setOpportunities(e.target.value)}
+                placeholder="¿Qué áreas de oportunidad identificas?"
+                rows={3}
+                maxLength={2000}
+                className="w-full resize-none rounded-xl border border-surface-200 bg-surface-50 px-4 py-3 text-sm text-surface-700 placeholder-surface-300 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-transparent transition-all"
+              />
+            </div>
           </div>
         </div>
 
@@ -420,9 +486,9 @@ export default function EvaluationFormPage() {
               Responde todas las preguntas para enviar.
             </p>
           )}
-          {allAnswered && !comment.trim() && (
+          {allAnswered && (!comment.trim() || !strengths.trim() || !opportunities.trim()) && (
             <p className="text-xs text-amber-500">
-              El comentario es obligatorio para enviar la evaluación.
+              Todos los comentarios son obligatorios para enviar la evaluación.
             </p>
           )}
           <button

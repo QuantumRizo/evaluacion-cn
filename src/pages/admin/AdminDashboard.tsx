@@ -678,7 +678,9 @@ function ResultsTab({
         'Área del Evaluador', 
         'Tipo de Evaluación',
         ...questionHeaders,
-        'Comentario Abierto'
+        'Comentario General',
+        'Fortalezas',
+        'Oportunidades'
       ];
       
       const rows: string[] = [];
@@ -718,6 +720,8 @@ function ResultsTab({
         
         const comment = allComments.find(c => c.evaluated_id === ev.evaluatedId && c.evaluator_id === ev.evaluatorId);
         row.push(comment && comment.comment ? `"${comment.comment.replace(/"/g, '""').replace(/\n/g, ' ')}"` : '""');
+        row.push(comment && comment.strengths ? `"${comment.strengths.replace(/"/g, '""').replace(/\n/g, ' ')}"` : '""');
+        row.push(comment && comment.opportunities ? `"${comment.opportunities.replace(/"/g, '""').replace(/\n/g, ' ')}"` : '""');
         
         rows.push(row.join(','));
       });
@@ -977,14 +981,33 @@ function ResultsTab({
               {/* Comment */}
               <div className="px-7 pb-7">
                 <div className="border-t border-surface-100 pt-5">
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-400 mb-3">Comentario Abierto</h3>
-                  {evComment && evComment.comment ? (
-                    <div className="bg-surface-50 border border-surface-200 rounded-xl p-4">
-                      <p className="text-sm text-surface-700 leading-relaxed whitespace-pre-wrap">{evComment.comment}</p>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-surface-400 italic">Este evaluador no dejó un comentario adicional.</p>
-                  )}
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-400 mb-3">Comentarios Adicionales</h3>
+                  <div className="flex flex-col gap-4">
+                    {evComment && (evComment.comment || evComment.strengths || evComment.opportunities) ? (
+                      <>
+                        {evComment.comment && (
+                          <div className="bg-surface-50 border border-surface-200 rounded-xl p-4">
+                            <p className="text-xs font-semibold uppercase tracking-wider text-surface-400 mb-1">General</p>
+                            <p className="text-sm text-surface-700 leading-relaxed whitespace-pre-wrap">{evComment.comment}</p>
+                          </div>
+                        )}
+                        {evComment.strengths && (
+                          <div className="bg-surface-50 border border-surface-200 rounded-xl p-4">
+                            <p className="text-xs font-semibold uppercase tracking-wider text-surface-400 mb-1">Fortalezas</p>
+                            <p className="text-sm text-surface-700 leading-relaxed whitespace-pre-wrap">{evComment.strengths}</p>
+                          </div>
+                        )}
+                        {evComment.opportunities && (
+                          <div className="bg-surface-50 border border-surface-200 rounded-xl p-4">
+                            <p className="text-xs font-semibold uppercase tracking-wider text-surface-400 mb-1">Oportunidades de mejora</p>
+                            <p className="text-sm text-surface-700 leading-relaxed whitespace-pre-wrap">{evComment.opportunities}</p>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <p className="text-sm text-surface-400 italic">Este evaluador no dejó comentarios adicionales.</p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

@@ -55,7 +55,9 @@ export interface EvaluationComment {
   evaluator_id: string;
   evaluated_id: string;
   evaluation_type: EvaluationType;
-  comment: string;
+  comment?: string;
+  strengths?: string;
+  opportunities?: string;
 }
 
 export interface FinalReport {

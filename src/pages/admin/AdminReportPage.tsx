@@ -168,7 +168,9 @@ export default function AdminReportPage() {
       'Área del Evaluador', 
       'Tipo de Evaluación',
       ...questionHeaders,
-      'Comentario Abierto',
+      'Comentario General',
+      'Fortalezas',
+      'Oportunidades',
       'Síntesis Administrativa',
       'Calificación Final'
     ];
@@ -196,6 +198,8 @@ export default function AdminReportPage() {
 
       const evComment = comments.find(c => c.evaluator_id === evId);
       row.push(evComment && evComment.comment ? `"${evComment.comment.replace(/"/g, '""').replace(/\n/g, ' ')}"` : '""');
+      row.push(evComment && evComment.strengths ? `"${evComment.strengths.replace(/"/g, '""').replace(/\n/g, ' ')}"` : '""');
+      row.push(evComment && evComment.opportunities ? `"${evComment.opportunities.replace(/"/g, '""').replace(/\n/g, ' ')}"` : '""');
       
       row.push(`"${adminSummary.replace(/"/g, '""').replace(/\n/g, ' ')}"`);
       row.push(`"${finalScore !== '' ? Math.round(Number(finalScore) * 100) + '%' : 'Pendiente'}"`);
@@ -449,10 +453,26 @@ export default function AdminReportPage() {
                     </div>
                   </div>
 
-                  {evComment && (
-                    <div className="mb-6 bg-surface-50 border border-surface-100 rounded-xl p-4">
-                      <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Comentario Adicional</p>
-                      <p className="text-sm text-surface-700 leading-relaxed whitespace-pre-wrap">{evComment.comment}</p>
+                  {evComment && (evComment.comment || evComment.strengths || evComment.opportunities) && (
+                    <div className="mb-6 bg-surface-50 border border-surface-100 rounded-xl p-4 flex flex-col gap-4">
+                      {evComment.comment && (
+                        <div>
+                          <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-1">Comentario General</p>
+                          <p className="text-sm text-surface-700 leading-relaxed whitespace-pre-wrap">{evComment.comment}</p>
+                        </div>
+                      )}
+                      {evComment.strengths && (
+                        <div>
+                          <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-1">Fortalezas</p>
+                          <p className="text-sm text-surface-700 leading-relaxed whitespace-pre-wrap">{evComment.strengths}</p>
+                        </div>
+                      )}
+                      {evComment.opportunities && (
+                        <div>
+                          <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-1">Oportunidades de Mejora</p>
+                          <p className="text-sm text-surface-700 leading-relaxed whitespace-pre-wrap">{evComment.opportunities}</p>
+                        </div>
+                      )}
                     </div>
                   )}
 

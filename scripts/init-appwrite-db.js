@@ -129,6 +129,19 @@ const COLLECTIONS = [
       { key: 'evaluator_id', type: 'string', size: 255, required: true },
     ],
   },
+  {
+    id: 'evaluation_comments',
+    name: 'Comentarios de Evaluacion',
+    attributes: [
+      { key: 'cycle_id',        type: 'string', size: 255, required: true },
+      { key: 'evaluator_id',    type: 'string', size: 255, required: true },
+      { key: 'evaluated_id',    type: 'string', size: 255, required: true },
+      { key: 'evaluation_type', type: 'enum',   elements: ['self', 'peer'], required: true },
+      { key: 'comment',         type: 'string', size: 5000, required: false },
+      { key: 'strengths',       type: 'string', size: 5000, required: false },
+      { key: 'opportunities',   type: 'string', size: 5000, required: false },
+    ],
+  },
 ];
 
 // ─── 28 preguntas predefinidas ────────────────────────────────────
