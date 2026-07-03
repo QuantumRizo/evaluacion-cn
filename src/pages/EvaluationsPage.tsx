@@ -86,7 +86,13 @@ export default function EvaluationsPage() {
         const needsSelf = asEvaluated.some(a => a.cycle_id === cycle.$id);
         if (needsSelf) {
           const hasResponses = myResponses.some(r => r.cycle_id === cycle.$id && r.evaluated_id === currentEmployee.$id);
-          const hasComment = myComments.some(c => c.cycle_id === cycle.$id && c.evaluated_id === currentEmployee.$id);
+          const hasComment = myComments.some(c => 
+            c.cycle_id === cycle.$id && 
+            c.evaluated_id === currentEmployee.$id &&
+            c.comment?.trim().length > 0 &&
+            c.strengths?.trim().length > 0 &&
+            c.opportunities?.trim().length > 0
+          );
           const done = hasResponses && hasComment;
           generatedTasks.push({
             id: `self_${cycle.$id}`,
@@ -103,7 +109,13 @@ export default function EvaluationsPage() {
         const myPeerAssignments = asEvaluator.filter(a => a.cycle_id === cycle.$id && a.evaluated_id !== currentEmployee.$id);
         for (const a of myPeerAssignments) {
           const hasResponses = myResponses.some(r => r.cycle_id === cycle.$id && r.evaluated_id === a.evaluated_id);
-          const hasComment = myComments.some(c => c.cycle_id === cycle.$id && c.evaluated_id === a.evaluated_id);
+          const hasComment = myComments.some(c => 
+            c.cycle_id === cycle.$id && 
+            c.evaluated_id === a.evaluated_id &&
+            c.comment?.trim().length > 0 &&
+            c.strengths?.trim().length > 0 &&
+            c.opportunities?.trim().length > 0
+          );
           const done = hasResponses && hasComment;
           const targetEmployee = allEmps.find(e => e.$id === a.evaluated_id);
           if (targetEmployee) {
