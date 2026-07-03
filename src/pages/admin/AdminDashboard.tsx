@@ -962,6 +962,27 @@ function ResultsTab({
         const evComment = comments.find(c => c.evaluator_id === selectedEvaluatorId);
         const isSelf = selectedEvaluatorId === evaluatedPerson.$id;
 
+        const selfResponses = responses.filter(r => r.evaluator_id === evaluatedPerson.$id);
+        const selfScoreRaw = selfResponses.length > 0 ? selfResponses.reduce((acc, r) => acc + r.score, 0) / selfResponses.length : null;
+        
+        const evScoreRaw = evResponses.length > 0 ? evResponses.reduce((acc, r) => acc + r.score, 0) / evResponses.length : null;
+
+        const categoryScores = CATEGORY_ORDER.map(cat => {
+          const catQuestions = allQuestions.filter(q => q.category === cat);
+          const sResp = selfResponses.filter(r => catQuestions.some(q => q.$id === r.question_id));
+          const eResp = evResponses.filter(r => catQuestions.some(q => q.$id === r.question_id));
+          
+          const sScore = sResp.length > 0 ? sResp.reduce((acc, r) => acc + r.score, 0) / sResp.length : null;
+          const eScore = eResp.length > 0 ? eResp.reduce((acc, r) => acc + r.score, 0) / eResp.length : null;
+          
+          return {
+            label: CATEGORY_LABELS[cat],
+            count: catQuestions.length,
+            self: sScore,
+            ev: eScore,
+          };
+        });
+
         return (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -996,102 +1017,63 @@ function ResultsTab({
               </div>
 
                 <div className="flex-1 overflow-y-auto">
-                  {/* Resumen / KPIs */}
-                  <div className="px-7 py-5 bg-surface-50 border-b border-surface-100 flex items-center justify-between">
-                    <div>
-                      <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-1">Resumen de la evaluación</h3>
-                      <p className="text-sm text-surface-600">Basado en las {evResponses.length} respuestas proporcionadas.</p>
+                               <div className="p-6 pb-2">
+                    {/* Score summary cards */}
+                    <div className="grid grid-cols-2 gap-4 mb-8">
+                      <ScoreCard
+                        label="Autoevaluación"
+                        score={selfScoreRaw}
+                        color="blue"
+                        description="Calificación personal"
+                      />
+                      <ScoreCard
+                        label="Calificación del Evaluador"
+                        score={evScoreRaw}
+                        color="green"
+                        description={`Calificación de ${evaluator.name.split(' ')[0]}`}
+                      />
                     </div>
-                    <div className="flex items-center gap-6">
-                      <div className="text-center">
-                        <p className="text-[10px] font-bold text-surface-400 uppercase tracking-widest mb-0.5">Completitud</p>
-                        <p className="text-xl font-bold text-surface-800">{evResponses.length > 0 ? '100%' : '0%'}</p>
-                      </div>
-                      <div className="w-px h-8 bg-surface-200"></div>
-                      <div className="text-center">
-                        <p className="text-[10px] font-bold text-surface-400 uppercase tracking-widest mb-0.5">Calificación Promedio</p>
-                        <p className={`text-xl font-bold ${evResponses.length === 0 ? 'text-surface-400' : (() => {
-                          const avg = evResponses.reduce((acc, r) => acc + r.score, 0) / evResponses.length;
-                          return avg >= 0.75 ? 'text-green-600' : avg >= 0.50 ? 'text-amber-600' : 'text-red-600';
-                        })()}`}>
-                          {evResponses.length > 0 
-                            ? Math.round((evResponses.reduce((acc, r) => acc + r.score, 0) / evResponses.length) * 100) + '%' 
-                            : 'N/A'
-                          }
-                        </p>
-                      </div>
-                    </div>
-                  </div>
 
-
-                  {evResponses.length > 0 && (
-                    <div className="px-7 py-6 bg-surface-50/50 border-b border-surface-100">
-                      {/* Top 3 and Bottom 3 */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                        <div>
-                          <h3 className="text-xs font-semibold uppercase tracking-wider text-green-700 mb-3 flex items-center gap-2">
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
-                            Top 3 Fortalezas
-                          </h3>
-                          <ul className="space-y-2">
-                            {[...evResponses]
-                              .sort((a, b) => b.score - a.score)
-                              .slice(0, 3)
-                              .map((r, i) => {
-                                const q = questions.find(q => q.$id === r.question_id);
-                                return (
-                                  <li key={i} className="text-sm text-surface-700 flex items-start gap-2">
-                                    <span className="font-bold text-green-600 w-8 shrink-0">{Math.round(r.score * 100)}%</span>
-                                    <span>{q?.text}</span>
-                                  </li>
-                                );
-                              })}
-                          </ul>
-                        </div>
-                        <div>
-                          <h3 className="text-xs font-semibold uppercase tracking-wider text-amber-700 mb-3 flex items-center gap-2">
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" /></svg>
-                            Top 3 Áreas de Oportunidad
-                          </h3>
-                          <ul className="space-y-2">
-                            {[...evResponses]
-                              .sort((a, b) => a.score - b.score)
-                              .slice(0, 3)
-                              .map((r, i) => {
-                                const q = questions.find(q => q.$id === r.question_id);
-                                return (
-                                  <li key={i} className="text-sm text-surface-700 flex items-start gap-2">
-                                    <span className="font-bold text-amber-600 w-8 shrink-0">{Math.round(r.score * 100)}%</span>
-                                    <span>{q?.text}</span>
-                                  </li>
-                                );
-                              })}
-                          </ul>
-                        </div>
+                    {/* Category breakdown */}
+                    <div className="bg-white rounded-2xl border border-surface-200 overflow-hidden mb-6 shadow-sm">
+                      <div className="px-6 py-4 border-b border-surface-100">
+                        <h2 className="text-sm font-semibold text-surface-800">
+                          Resultados por Categoría
+                        </h2>
                       </div>
-
-                      {/* Resultados por Categoría */}
-                      <div>
-                        <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">Resultados por Categoría</h3>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                          {CATEGORY_ORDER.map(cat => {
-                            const catQuestions = questions.filter(q => q.category === cat);
-                            const catResponses = evResponses.filter(r => catQuestions.some(q => q.$id === r.question_id));
-                            if (catResponses.length === 0) return null;
-                            const catScore = catResponses.reduce((acc, r) => acc + r.score, 0) / catResponses.length;
-                            const color = catScore >= 0.75 ? 'text-green-700 bg-green-50 border-green-200' : catScore >= 0.50 ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-red-700 bg-red-50 border-red-200';
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-surface-50 bg-surface-50/50">
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-surface-400 uppercase tracking-wider">Categoría</th>
+                            <th className="px-6 py-3 text-center text-xs font-semibold text-surface-400 uppercase tracking-wider">Preguntas</th>
+                            <th className="px-6 py-3 text-center text-xs font-semibold text-surface-400 uppercase tracking-wider">Autoevaluación</th>
+                            <th className="px-6 py-3 text-center text-xs font-semibold text-surface-400 uppercase tracking-wider">Evaluador</th>
+                            <th className="px-6 py-3 text-center text-xs font-semibold text-surface-400 uppercase tracking-wider">Diferencia</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-surface-50">
+                          {categoryScores.map((cs) => {
+                            const diff = cs.self !== null && cs.ev !== null ? cs.ev - cs.self : null;
+                            const diffColor = diff === null ? 'text-surface-300' : diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-500' : 'text-surface-400';
+                            const diffPrefix = diff !== null && diff > 0 ? '+' : '';
                             return (
-                              <div key={cat} className={`p-3 rounded-xl border ${color} flex flex-col justify-between`}>
-                                <span className="text-[10px] font-bold uppercase tracking-wider mb-2 opacity-80">{CATEGORY_LABELS[cat]}</span>
-                                <span className="text-lg font-bold">{Math.round(catScore * 100)}%</span>
-                              </div>
+                              <tr key={cs.label} className="hover:bg-surface-50 transition-colors">
+                                <td className="px-6 py-4 font-medium text-surface-700">{cs.label}</td>
+                                <td className="px-6 py-4 text-center text-surface-400">{cs.count}</td>
+                                <td className="px-6 py-4 text-center font-bold text-surface-600">{cs.self !== null ? Math.round(cs.self * 100) + '%' : '—'}</td>
+                                <td className="px-6 py-4 text-center font-bold text-green-600">{cs.ev !== null ? Math.round(cs.ev * 100) + '%' : '—'}</td>
+                                <td className={`px-6 py-4 text-center font-medium ${diffColor}`}>
+                                  {diff !== null ? `${diffPrefix}${Math.round(diff * 100)}%` : '—'}
+                                </td>
+                              </tr>
                             );
                           })}
-                        </div>
-                      </div>
+                        </tbody>
+                      </table>
                     </div>
-                  )}
-                  <div className="px-7 py-6">
+                  </div>
+                  
+                  <div className="px-7 pt-4">
                     <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-400 mb-4">Respuestas por pregunta</h3>
                 {questions.length === 0 ? (
                   <p className="text-surface-500 text-sm">Cargando preguntas...</p>
@@ -1159,5 +1141,31 @@ function ResultsTab({
   );
 }
 
+function ScoreCard({
+  label,
+  score,
+  color,
+  description,
+}: {
+  label: string;
+  score: number | null;
+  color: 'blue' | 'green' | 'purple';
+  description: string;
+}) {
+  const colorMap = {
+    blue: { bg: 'bg-primary-50', border: 'border-primary-100', text: 'text-primary-600', sub: 'text-primary-400' },
+    green: { bg: 'bg-green-50', border: 'border-green-100', text: 'text-green-600', sub: 'text-green-400' },
+    purple: { bg: 'bg-violet-50', border: 'border-violet-100', text: 'text-violet-600', sub: 'text-violet-400' },
+  };
+  const c = colorMap[color];
 
-// Removed ProgressTab
+  return (
+    <div className={`rounded-2xl border p-5 ${c.bg} ${c.border}`}>
+      <p className="text-xs font-medium text-surface-500 mb-1">{label}</p>
+      <p className={`text-3xl font-bold ${c.text} mb-1`}>
+        {score !== null ? `${Math.round(score * 100)}%` : '—'}
+      </p>
+      <p className={`text-xs ${c.sub}`}>{description}</p>
+    </div>
+  );
+}
