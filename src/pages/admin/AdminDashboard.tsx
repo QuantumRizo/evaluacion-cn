@@ -474,18 +474,7 @@ function CycleAssignments({ cycle, allEmployees }: { cycle: EvaluationCycle; all
       }
       
       if (notify) {
-        // Llamar a la función para correos en lote
-        try {
-          console.log('Enviando correos en lote vía Appwrite Functions...');
-          const payload = JSON.stringify({
-            cycle_id: cycle.$id,
-            evaluated_id: selectedEvaluated.$id,
-            evaluator_ids: evaluatorsToAssign
-          });
-          await functions.createExecution('send_assignment_email', payload, false, '/', 'POST' as any);
-        } catch (funcErr) {
-          console.error('Error invocando función de correos:', funcErr);
-        }
+        await sendNotifications(evaluatorsToAssign);
       }
 
       setSaved(true);
@@ -493,6 +482,30 @@ function CycleAssignments({ cycle, allEmployees }: { cycle: EvaluationCycle; all
       await loadAssignments();
     } catch (err) { console.error(err); }
     finally { setSaving(false); }
+  }
+
+  async function sendNotifications(evaluatorIds?: string[]) {
+    if (!selectedEvaluated) return;
+    setSaving(true);
+    try {
+      const toNotify = evaluatorIds ?? assignments
+        .filter(a => a.evaluated_id === selectedEvaluated.$id)
+        .map(a => a.evaluator_id);
+      
+      console.log('Enviando correos en lote vía Appwrite Functions...');
+      const payload = JSON.stringify({
+        cycle_id: cycle.$id,
+        evaluated_id: selectedEvaluated.$id,
+        evaluator_ids: toNotify,
+      });
+      await functions.createExecution('send_assignment_email', payload, false, '/', 'POST' as any);
+      console.log(`✅ Notificaciones enviadas a ${toNotify.length} evaluadores.`);
+      setSaved(true);
+    } catch (funcErr) {
+      console.error('Error invocando función de correos:', funcErr);
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (loading) return <div className="p-10 flex justify-center"><LoadingSpinner /></div>;
@@ -575,6 +588,7 @@ function CycleAssignments({ cycle, allEmployees }: { cycle: EvaluationCycle; all
                 <p className="text-xs text-surface-500 mt-1">La autoevaluación se genera automáticamente.</p>
               </div>
               <div className="flex gap-2">
+                {/* Guardar cambios (solo activo si hay cambios) */}
                 <button
                   onClick={() => saveAssignments(false)}
                   disabled={saving || (!hasChanges && hasEvaluatorsSaved)}
@@ -588,19 +602,30 @@ function CycleAssignments({ cycle, allEmployees }: { cycle: EvaluationCycle; all
                 >
                   {saving ? '...' : !hasChanges && hasEvaluatorsSaved ? 'Sin cambios' : saved ? '¡Guardado!' : 'Guardar'}
                 </button>
-                <button
-                  onClick={() => saveAssignments(true)}
-                  disabled={saving || (!hasChanges && hasEvaluatorsSaved)}
-                  className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm ${
-                    !hasChanges && hasEvaluatorsSaved
-                      ? 'bg-surface-200 text-surface-500 cursor-not-allowed'
-                      : saved && !saving
-                      ? 'bg-green-500 text-white hover:bg-green-600'
-                      : 'bg-primary-500 text-white hover:bg-primary-600'
-                  } disabled:opacity-50`}
-                >
-                  {saving ? 'Guardando...' : !hasChanges && hasEvaluatorsSaved ? 'Sin cambios' : saved ? '¡Guardado!' : 'Guardar y notificar'}
-                </button>
+
+                {/* Notificar: siempre activo si hay evaluadores asignados, con o sin cambios */}
+                {hasChanges ? (
+                  <button
+                    onClick={() => saveAssignments(true)}
+                    disabled={saving}
+                    className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm ${
+                      saved && !saving
+                        ? 'bg-green-500 text-white hover:bg-green-600'
+                        : 'bg-primary-500 text-white hover:bg-primary-600'
+                    } disabled:opacity-50`}
+                  >
+                    {saving ? 'Guardando...' : saved ? '¡Guardado!' : 'Guardar y notificar'}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => sendNotifications()}
+                    disabled={saving || !hasEvaluatorsSaved}
+                    title={hasEvaluatorsSaved ? 'Reenviar notificaciones a los evaluadores ya asignados' : 'No hay evaluadores asignados'}
+                    className="flex-1 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm bg-primary-500 text-white hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {saving ? 'Enviando...' : '📧 Reenviar notificaciones'}
+                  </button>
+                )}
               </div>
             </div>
             <div className="overflow-y-auto flex-1 p-3 space-y-2">
