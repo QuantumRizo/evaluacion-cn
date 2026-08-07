@@ -427,6 +427,7 @@ function CycleAssignments({ cycle, allEmployees }: { cycle: EvaluationCycle; all
   const [selectedEvaluatorIds, setSelectedEvaluatorIds] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [searchEvaluated, setSearchEvaluated] = useState('');
 
   const loadAssignments = useCallback(async () => {
     setLoading(true);
@@ -544,9 +545,25 @@ function CycleAssignments({ cycle, allEmployees }: { cycle: EvaluationCycle; all
         <div className="p-4 border-b border-surface-100 bg-surface-50/50 shrink-0">
           <p className="text-xs font-bold text-surface-600 uppercase tracking-wider">1. ¿A quién evaluar en este ciclo?</p>
           <p className="text-xs text-surface-400 mt-1">Selecciona a un colaborador para asignarle sus evaluadores.</p>
+          <div className="mt-3 relative">
+            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Buscar colaborador..."
+              value={searchEvaluated}
+              onChange={e => setSearchEvaluated(e.target.value)}
+              className="w-full pl-8 pr-3 py-2 text-xs border border-surface-200 rounded-xl outline-none focus:border-primary-400 bg-white transition-colors"
+            />
+          </div>
         </div>
         <div className="overflow-y-auto flex-1 p-3 space-y-2">
-          {allEmployees.map(emp => {
+          {allEmployees.filter(e => {
+            const q = searchEvaluated.toLowerCase().trim();
+            if (!q) return true;
+            return e.name.toLowerCase().includes(q) || (e.department ?? '').toLowerCase().includes(q);
+          }).map(emp => {
             const isSelected = selectedEvaluated?.$id === emp.$id;
             const count = assignments.filter((a) => a.evaluated_id === emp.$id && a.evaluator_id !== emp.$id).length;
             const hasSelfEval = assignments.some(a => a.evaluated_id === emp.$id && a.evaluator_id === emp.$id);
