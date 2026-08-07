@@ -380,7 +380,7 @@ function CyclesTab({
                   <StatusBadge status={c.status} />
                 </div>
                 {evaluatee && (
-                  <p className="text-[11px] text-primary-600 font-medium mb-0.5">👤 {evaluatee.name}</p>
+                  <p className="text-[11px] text-primary-600 font-medium mb-0.5">{evaluatee.name}</p>
                 )}
                 <p className="text-[11px] text-surface-400">
                   {c.start_date ? new Date(c.start_date).toLocaleDateString() : 'Sin inicio'} - {c.end_date ? new Date(c.end_date).toLocaleDateString() : 'Sin fin'}
@@ -598,7 +598,7 @@ function CycleAssignments({ cycle, allEmployees, evaluatee }: { cycle: Evaluatio
             disabled={saving || !hasEvaluatorsSaved}
             className="flex-1 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm bg-primary-500 text-white hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {saving ? 'Enviando...' : '📧 Reenviar notificaciones'}
+            {saving ? 'Enviando...' : 'Reenviar notificaciones'}
           </button>
         )}
       </div>
