@@ -19,7 +19,6 @@ export default function EvaluationFormPage() {
   const [cycle, setCycle] = useState<EvaluationCycle | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Answers>({});
-  const [comment, setComment] = useState('');
   const [strengths, setStrengths] = useState('');
   const [opportunities, setOpportunities] = useState('');
   const [loading, setLoading] = useState(true);
@@ -70,13 +69,11 @@ export default function EvaluationFormPage() {
         if (existingComment.total > 0) {
           const doc = existingComment.documents[0] as unknown as EvaluationComment;
           
-          const hasAllComments = (doc.comment?.trim().length ?? 0) > 0 && 
-                                 (doc.strengths?.trim().length ?? 0) > 0 && 
+          const hasAllComments = (doc.strengths?.trim().length ?? 0) > 0 && 
                                  (doc.opportunities?.trim().length ?? 0) > 0;
 
           setAlreadyCommented(hasAllComments);
           setExistingCommentDoc(doc);
-          setComment(doc.comment ?? '');
           setStrengths(doc.strengths ?? '');
           setOpportunities(doc.opportunities ?? '');
         }
@@ -105,7 +102,7 @@ export default function EvaluationFormPage() {
   const answeredCount = Object.keys(answers).length;
   const totalQuestions = questions.length;
   const allAnswered = answeredCount === totalQuestions && totalQuestions > 0;
-  const canSubmit = allAnswered && comment.trim().length > 0 && strengths.trim().length > 0 && opportunities.trim().length > 0;
+  const canSubmit = allAnswered && strengths.trim().length > 0 && opportunities.trim().length > 0;
 
   async function handleSubmit() {
     if (!canSubmit || !cycle || !currentEmployee) return;
@@ -131,7 +128,7 @@ export default function EvaluationFormPage() {
         evaluator_id: currentEmployee.$id,
         evaluated_id: evaluatedId,
         evaluation_type: evaluationType,
-        comment: comment.trim(),
+        comment: '',
         strengths: strengths.trim(),
         opportunities: opportunities.trim(),
       });
@@ -145,7 +142,7 @@ export default function EvaluationFormPage() {
   }
 
   async function handleSaveComment() {
-    if (!comment.trim() || !strengths.trim() || !opportunities.trim() || !cycle || !currentEmployee) return;
+    if (!strengths.trim() || !opportunities.trim() || !cycle || !currentEmployee) return;
     setSubmittingComment(true);
     setError('');
 
@@ -155,7 +152,7 @@ export default function EvaluationFormPage() {
       if (existingCommentDoc) {
         // Update existing comment
         await databases.updateDocument(DB_ID, COLLECTIONS.EVALUATION_COMMENTS, existingCommentDoc.$id, {
-          comment: comment.trim(),
+          comment: '',
           strengths: strengths.trim(),
           opportunities: opportunities.trim(),
         });
@@ -166,7 +163,7 @@ export default function EvaluationFormPage() {
           evaluator_id: currentEmployee.$id,
           evaluated_id: evaluatedId,
           evaluation_type: evaluationType,
-          comment: comment.trim(),
+          comment: '',
           strengths: strengths.trim(),
           opportunities: opportunities.trim(),
         });
@@ -214,10 +211,6 @@ export default function EvaluationFormPage() {
           </p>
           {existingCommentDoc && (
             <div className="bg-white border border-surface-200 rounded-2xl px-5 py-4 text-left mb-6">
-              <div className="mb-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-surface-400 mb-1">Comentario General</p>
-                <p className="text-sm text-surface-700 leading-relaxed">{existingCommentDoc.comment || 'N/A'}</p>
-              </div>
               <div className="mb-4">
                 <p className="text-xs font-semibold uppercase tracking-wider text-surface-400 mb-1">Fortalezas</p>
                 <p className="text-sm text-surface-700 leading-relaxed">{existingCommentDoc.strengths || 'N/A'}</p>
@@ -287,17 +280,6 @@ export default function EvaluationFormPage() {
             </div>
             <div className="px-6 py-5 flex flex-col gap-5">
               <div>
-                <label className="block text-sm font-medium text-surface-700 mb-1">Comentario General</label>
-                <textarea
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  placeholder="Observaciones generales..."
-                  rows={3}
-                  maxLength={2000}
-                  className="w-full resize-none rounded-xl border border-surface-200 bg-surface-50 px-4 py-3 text-sm text-surface-700 placeholder-surface-300 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-transparent transition-all"
-                />
-              </div>
-              <div>
                 <label className="block text-sm font-medium text-surface-700 mb-1">Fortalezas</label>
                 <textarea
                   value={strengths}
@@ -333,7 +315,7 @@ export default function EvaluationFormPage() {
             </button>
             <button
               onClick={handleSaveComment}
-              disabled={!comment.trim() || !strengths.trim() || !opportunities.trim() || submittingComment}
+              disabled={!strengths.trim() || !opportunities.trim() || submittingComment}
               className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary-500 hover:bg-primary-600 disabled:bg-surface-200 disabled:text-surface-400 text-white text-sm font-semibold transition-all duration-200"
             >
               {submittingComment ? (
@@ -446,17 +428,6 @@ export default function EvaluationFormPage() {
           </div>
           <div className="px-6 py-5 flex flex-col gap-5">
             <div>
-              <label className="block text-sm font-medium text-surface-700 mb-1">Comentario General</label>
-              <textarea
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                placeholder="Escribe aquí tus observaciones, contexto adicional o retroalimentación general..."
-                rows={3}
-                maxLength={2000}
-                className="w-full resize-none rounded-xl border border-surface-200 bg-surface-50 px-4 py-3 text-sm text-surface-700 placeholder-surface-300 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-transparent transition-all"
-              />
-            </div>
-            <div>
               <label className="block text-sm font-medium text-surface-700 mb-1">Fortalezas</label>
               <textarea
                 value={strengths}
@@ -491,7 +462,7 @@ export default function EvaluationFormPage() {
               Responde todas las preguntas para enviar.
             </p>
           )}
-          {allAnswered && (!comment.trim() || !strengths.trim() || !opportunities.trim()) && (
+          {allAnswered && (!strengths.trim() || !opportunities.trim()) && (
             <p className="text-xs text-amber-500">
               Todos los comentarios son obligatorios para enviar la evaluación.
             </p>
