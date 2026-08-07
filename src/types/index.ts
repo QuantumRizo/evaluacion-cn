@@ -19,6 +19,7 @@ export interface Employee {
   position?: string;
   role: UserRole;
   auth_user_id?: string;
+  is_active?: boolean;
 }
 
 export interface EvaluationCycle {
