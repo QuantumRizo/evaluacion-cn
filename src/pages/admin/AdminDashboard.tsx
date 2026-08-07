@@ -45,7 +45,8 @@ export default function AdminDashboard() {
 
   // Shared state
   const [allCycles, setAllCycles] = useState<EvaluationCycle[]>([]);
-  const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
+  const [allEmployees, setAllEmployees] = useState<Employee[]>([]); // Solo activos: para ciclos y asignaciones
+  const [allEmployeesAll, setAllEmployeesAll] = useState<Employee[]>([]); // Todos: para gestión de empleados
   const [loading, setLoading] = useState(true);
 
 
@@ -70,7 +71,9 @@ export default function AdminDashboard() {
       ]);
       const cycles = cyclesResult.documents as unknown as EvaluationCycle[];
       setAllCycles(cycles);
-      setAllEmployees(emps);
+      setAllEmployeesAll(emps); // Todos (activos + inactivos) → Gestión de Empleados
+      // Solo mostrar empleados activos en ciclos y asignaciones
+      setAllEmployees(emps.filter(e => e.is_active !== false));
       setAllQuestions(qs);
     } catch (err) {
       console.error(err);
@@ -203,7 +206,7 @@ export default function AdminDashboard() {
               />
             )}
             {activeTab === 'empleados' && (
-              <EmployeesTab employees={allEmployees} onRefresh={loadData} />
+              <EmployeesTab employees={allEmployeesAll} onRefresh={loadData} />
             )}
           </>
         )}
