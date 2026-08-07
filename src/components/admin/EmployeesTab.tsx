@@ -15,7 +15,6 @@ export default function EmployeesTab({ employees, onRefresh }: EmployeesTabProps
 
   // Modals state
   const [editingEmp, setEditingEmp] = useState<Employee | null>(null);
-  const [showCreate, setShowCreate] = useState(false);
 
   // Edit Form state
   const [editName, setEditName] = useState('');
@@ -23,13 +22,6 @@ export default function EmployeesTab({ employees, onRefresh }: EmployeesTabProps
   const [editDept, setEditDept] = useState('');
   const [editPos, setEditPos] = useState('');
   const [saving, setSaving] = useState(false);
-
-  // Create Form state
-  const [newName, setNewName] = useState('');
-  const [newEmail, setNewEmail] = useState('');
-  const [newDept, setNewDept] = useState('');
-  const [newPos, setNewPos] = useState('');
-  const [creating, setCreating] = useState(false);
 
   // Stats
   const totalCount = employees.length;
@@ -101,56 +93,9 @@ export default function EmployeesTab({ employees, onRefresh }: EmployeesTabProps
     }
   }
 
-  // Action: Create Employee
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newName.trim() || !newEmail.trim()) return;
-
-    setCreating(true);
-    try {
-      await databases.createDocument(DB_ID, COLLECTIONS.EMPLOYEES, ID.unique(), {
-        name: newName.trim(),
-        email: newEmail.trim(),
-        department: newDept.trim() || undefined,
-        position: newPos.trim() || undefined,
-        role: 'employee',
-        is_active: true,
-      });
-      setNewName('');
-      setNewEmail('');
-      setNewDept('');
-      setNewPos('');
-      setShowCreate(false);
-      onRefresh();
-    } catch (err) {
-      console.error('Error creando empleado:', err);
-      alert('Hubo un error al registrar el nuevo empleado.');
-    } finally {
-      setCreating(false);
-    }
-  }
 
   return (
     <div className="space-y-6">
-      {/* Top Header & Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-surface-800">Administración de Empleados</h2>
-          <p className="text-surface-500 text-sm mt-0.5">
-            Gestiona la plantilla, edita nombres y desactiva el acceso a colaboradores que ya no pertenecen a la empresa.
-          </p>
-        </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary-500 hover:bg-primary-600 text-white font-medium text-sm rounded-xl shadow-md shadow-primary-500/20 transition-all duration-200"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-          </svg>
-          Registrar Empleado
-        </button>
-      </div>
-
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white p-4 rounded-2xl border border-surface-200 shadow-sm flex items-center gap-3">
@@ -421,87 +366,6 @@ export default function EmployeesTab({ employees, onRefresh }: EmployeesTabProps
         </div>
       )}
 
-      {/* Modal Create Employee */}
-      {showCreate && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-surface-200 p-6 w-full max-w-md shadow-xl animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-surface-800">Registrar Nuevo Empleado</h3>
-              <button
-                onClick={() => setShowCreate(false)}
-                className="w-8 h-8 rounded-full hover:bg-surface-100 flex items-center justify-center text-surface-400 hover:text-surface-600"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleCreate} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-surface-600 mb-1">Nombre Completo</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ej. María Fernández"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  className="w-full px-3 py-2 border border-surface-200 rounded-xl text-sm outline-none focus:border-primary-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-surface-600 mb-1">Correo Electrónico</label>
-                <input
-                  type="email"
-                  required
-                  placeholder="ejemplo@empresa.com"
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
-                  className="w-full px-3 py-2 border border-surface-200 rounded-xl text-sm outline-none focus:border-primary-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-surface-600 mb-1">Cargo / Puesto</label>
-                <input
-                  type="text"
-                  placeholder="Ej. Analista de Selección"
-                  value={newPos}
-                  onChange={(e) => setNewPos(e.target.value)}
-                  className="w-full px-3 py-2 border border-surface-200 rounded-xl text-sm outline-none focus:border-primary-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-surface-600 mb-1">Departamento</label>
-                <input
-                  type="text"
-                  placeholder="Ej. Recursos Humanos"
-                  value={newDept}
-                  onChange={(e) => setNewDept(e.target.value)}
-                  className="w-full px-3 py-2 border border-surface-200 rounded-xl text-sm outline-none focus:border-primary-500"
-                />
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowCreate(false)}
-                  className="flex-1 py-2.5 border border-surface-200 rounded-xl text-sm font-semibold text-surface-600 hover:bg-surface-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={creating}
-                  className="flex-1 py-2.5 bg-primary-500 hover:bg-primary-600 text-white rounded-xl text-sm font-semibold shadow-md shadow-primary-500/20"
-                >
-                  {creating ? 'Registrando...' : 'Registrar Empleado'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
