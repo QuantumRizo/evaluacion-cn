@@ -233,6 +233,7 @@ function CyclesTab({
   const [name, setName] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [newEvaluatedId, setNewEvaluatedId] = useState('');
   const [creating, setCreating] = useState(false);
 
   // Edit form state
@@ -243,7 +244,7 @@ function CyclesTab({
   const [saving, setSaving] = useState(false);
 
   async function createCycle() {
-    if (!name.trim()) return;
+    if (!name.trim() || !newEvaluatedId) return;
     setCreating(true);
     try {
       const newId = ID.unique();
@@ -252,8 +253,9 @@ function CyclesTab({
         status: 'active',
         start_date: startDate || undefined,
         end_date: endDate || undefined,
+        evaluated_employee_id: newEvaluatedId,
       });
-      setName(''); setStartDate(''); setEndDate(''); setShowCreate(false);
+      setName(''); setStartDate(''); setEndDate(''); setNewEvaluatedId(''); setShowCreate(false);
       onRefresh();
     } catch (err) { console.error(err); }
     finally { setCreating(false); }
@@ -325,15 +327,37 @@ function CyclesTab({
 
         <div className="overflow-y-auto flex-grow divide-y divide-surface-50 p-2">
           {showCreate && (
-            <div className="bg-primary-50/50 p-4 rounded-xl border border-primary-100 mb-3">
-              <h3 className="text-xs font-semibold text-primary-800 mb-3">Crear Nuevo Ciclo</h3>
-              <input type="text" placeholder="Nombre (Ej: IT 2026)" value={name} onChange={(e) => setName(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-primary-200 text-sm mb-2" />
-              <div className="flex gap-2 mb-3">
-                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full px-2 py-1.5 rounded-lg border border-primary-200 text-xs" title="Inicio" />
-                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full px-2 py-1.5 rounded-lg border border-primary-200 text-xs" title="Fin" />
+            <div className="bg-primary-50/50 p-4 rounded-xl border border-primary-100 mb-3 space-y-2">
+              <h3 className="text-xs font-semibold text-primary-800 mb-1">Nuevo Ciclo de Evaluación</h3>
+              <div>
+                <label className="text-[10px] text-primary-700 font-semibold uppercase tracking-wider">¿A quién se evalúa?</label>
+                <select
+                  value={newEvaluatedId}
+                  onChange={e => setNewEvaluatedId(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 rounded-lg border border-primary-200 text-sm bg-white"
+                >
+                  <option value="">Seleccionar colaborador...</option>
+                  {allEmployees.map(emp => (
+                    <option key={emp.$id} value={emp.$id}>{emp.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] text-primary-700 font-semibold uppercase tracking-wider">Nombre del ciclo</label>
+                <input type="text" placeholder="Ej: 1er Semestre 2026" value={name} onChange={(e) => setName(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-primary-200 text-sm" />
               </div>
               <div className="flex gap-2">
-                <button onClick={createCycle} disabled={!name.trim() || creating} className="flex-1 py-1.5 bg-primary-500 text-white rounded-lg text-xs font-medium">Crear</button>
+                <div className="flex-1">
+                  <label className="text-[10px] text-primary-700 font-semibold uppercase tracking-wider">Inicio</label>
+                  <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full mt-1 px-2 py-1.5 rounded-lg border border-primary-200 text-xs" />
+                </div>
+                <div className="flex-1">
+                  <label className="text-[10px] text-primary-700 font-semibold uppercase tracking-wider">Fin</label>
+                  <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full mt-1 px-2 py-1.5 rounded-lg border border-primary-200 text-xs" />
+                </div>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button onClick={createCycle} disabled={!name.trim() || !newEvaluatedId || creating} className="flex-1 py-1.5 bg-primary-500 text-white rounded-lg text-xs font-medium disabled:opacity-50">Crear</button>
                 <button onClick={() => setShowCreate(false)} className="flex-1 py-1.5 border border-primary-200 text-primary-700 rounded-lg text-xs font-medium">Cancelar</button>
               </div>
             </div>
@@ -343,21 +367,27 @@ function CyclesTab({
             <p className="text-center text-surface-400 text-sm py-10">No hay ciclos aún.</p>
           )}
 
-          {cycles.map(c => (
-            <button
-              key={c.$id}
-              onClick={() => { setSelectedCycle(c); setShowCreate(false); setEditing(false); }}
-              className={`w-full text-left p-3 rounded-xl transition-all duration-200 ${selectedCycle?.$id === c.$id ? 'bg-primary-50 border border-primary-300 shadow-md' : 'hover:bg-white hover:shadow-md hover:-translate-y-0.5 hover:border-primary-200 border border-transparent'}`}
-            >
-              <div className="flex justify-between items-start mb-1">
-                <p className={`font-medium text-sm ${selectedCycle?.$id === c.$id ? 'text-primary-800' : 'text-surface-800'}`}>{c.name}</p>
-                <StatusBadge status={c.status} />
-              </div>
-              <p className="text-[11px] text-surface-400">
-                {c.start_date ? new Date(c.start_date).toLocaleDateString() : 'Sin inicio'} - {c.end_date ? new Date(c.end_date).toLocaleDateString() : 'Sin fin'}
-              </p>
-            </button>
-          ))}
+          {cycles.map(c => {
+            const evaluatee = allEmployees.find(e => e.$id === c.evaluated_employee_id);
+            return (
+              <button
+                key={c.$id}
+                onClick={() => { setSelectedCycle(c); setShowCreate(false); setEditing(false); }}
+                className={`w-full text-left p-3 rounded-xl transition-all duration-200 ${selectedCycle?.$id === c.$id ? 'bg-primary-50 border border-primary-300 shadow-md' : 'hover:bg-white hover:shadow-md hover:-translate-y-0.5 hover:border-primary-200 border border-transparent'}`}
+              >
+                <div className="flex justify-between items-start mb-1">
+                  <p className={`font-medium text-sm ${selectedCycle?.$id === c.$id ? 'text-primary-800' : 'text-surface-800'}`}>{c.name}</p>
+                  <StatusBadge status={c.status} />
+                </div>
+                {evaluatee && (
+                  <p className="text-[11px] text-primary-600 font-medium mb-0.5">👤 {evaluatee.name}</p>
+                )}
+                <p className="text-[11px] text-surface-400">
+                  {c.start_date ? new Date(c.start_date).toLocaleDateString() : 'Sin inicio'} - {c.end_date ? new Date(c.end_date).toLocaleDateString() : 'Sin fin'}
+                </p>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -408,7 +438,7 @@ function CyclesTab({
             
             {/* Assignments View inside Cycle */}
             <div className="flex-1 overflow-hidden">
-              <CycleAssignments cycle={selectedCycle} allEmployees={allEmployees} />
+              <CycleAssignments cycle={selectedCycle} allEmployees={allEmployees} evaluatee={allEmployees.find(e => e.$id === selectedCycle.evaluated_employee_id) ?? null} />
             </div>
           </div>
         )}
@@ -419,15 +449,13 @@ function CyclesTab({
 
 // ─── Sub-component: Cycle Assignments (Right Side of Tab 1) ──────────────────
 
-function CycleAssignments({ cycle, allEmployees }: { cycle: EvaluationCycle; allEmployees: Employee[] }) {
+function CycleAssignments({ cycle, allEmployees, evaluatee }: { cycle: EvaluationCycle; allEmployees: Employee[]; evaluatee: Employee | null }) {
   const [assignments, setAssignments] = useState<EvaluationAssignment[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const [selectedEvaluated, setSelectedEvaluated] = useState<Employee | null>(null);
   const [selectedEvaluatorIds, setSelectedEvaluatorIds] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [searchEvaluated, setSearchEvaluated] = useState('');
+  const [search, setSearch] = useState('');
 
   const loadAssignments = useCallback(async () => {
     setLoading(true);
@@ -436,18 +464,15 @@ function CycleAssignments({ cycle, allEmployees }: { cycle: EvaluationCycle; all
         Query.equal('cycle_id', cycle.$id)
       ]);
       setAssignments(docs);
+      if (evaluatee) {
+        const current = docs.filter(a => a.evaluated_id === evaluatee.$id).map(a => a.evaluator_id);
+        setSelectedEvaluatorIds(new Set(current));
+      }
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
-  }, [cycle.$id]);
+  }, [cycle.$id, evaluatee?.$id]);
 
-  useEffect(() => { loadAssignments(); setSelectedEvaluated(null); }, [loadAssignments]);
-
-  function selectEmployee(emp: Employee) {
-    setSelectedEvaluated(emp);
-    setSaved(false);
-    const current = assignments.filter((a) => a.evaluated_id === emp.$id).map((a) => a.evaluator_id);
-    setSelectedEvaluatorIds(new Set(current));
-  }
+  useEffect(() => { loadAssignments(); }, [loadAssignments]);
 
   function toggleEvaluator(id: string) {
     const next = new Set(selectedEvaluatorIds);
@@ -457,221 +482,164 @@ function CycleAssignments({ cycle, allEmployees }: { cycle: EvaluationCycle; all
   }
 
   async function saveAssignments(notify: boolean) {
-    if (!selectedEvaluated) return;
+    if (!evaluatee) return;
     setSaving(true);
     try {
-      console.log(`Guardando asignaciones para: ${selectedEvaluated.name} (notify=${notify})`);
-      const existing = assignments.filter((a) => a.evaluated_id === selectedEvaluated.$id);
+      const existing = assignments.filter(a => a.evaluated_id === evaluatee.$id);
       for (const a of existing) await databases.deleteDocument(DB_ID, COLLECTIONS.EVALUATION_ASSIGNMENTS, a.$id);
       
       const evaluatorsToAssign = Array.from(selectedEvaluatorIds);
-      if (!evaluatorsToAssign.includes(selectedEvaluated.$id)) {
-        evaluatorsToAssign.push(selectedEvaluated.$id);
-      }
+      if (!evaluatorsToAssign.includes(evaluatee.$id)) evaluatorsToAssign.push(evaluatee.$id);
       
       for (const evaluatorId of evaluatorsToAssign) {
         await databases.createDocument(DB_ID, COLLECTIONS.EVALUATION_ASSIGNMENTS, ID.unique(), {
           cycle_id: cycle.$id,
-          evaluated_id: selectedEvaluated.$id,
+          evaluated_id: evaluatee.$id,
           evaluator_id: evaluatorId,
         });
       }
-      
-      if (notify) {
-        await sendNotifications(evaluatorsToAssign);
-      }
-
+      if (notify) await sendNotifications(evaluatorsToAssign);
       setSaved(true);
-      console.log(`✅ Se crearon ${evaluatorsToAssign.length} asignaciones${notify ? ' y se notificaron' : ' (sin notificación)'}`);
       await loadAssignments();
     } catch (err) { console.error(err); }
     finally { setSaving(false); }
   }
 
   async function sendNotifications(evaluatorIds?: string[]) {
-    if (!selectedEvaluated) return;
+    if (!evaluatee) return;
     setSaving(true);
     try {
       const toNotify = evaluatorIds ?? assignments
-        .filter(a => a.evaluated_id === selectedEvaluated.$id)
+        .filter(a => a.evaluated_id === evaluatee.$id)
         .map(a => a.evaluator_id);
-      
-      console.log('Enviando correos en lote vía Appwrite Functions...');
-      const payload = JSON.stringify({
-        cycle_id: cycle.$id,
-        evaluated_id: selectedEvaluated.$id,
-        evaluator_ids: toNotify,
-      });
+      const payload = JSON.stringify({ cycle_id: cycle.$id, evaluated_id: evaluatee.$id, evaluator_ids: toNotify });
       await functions.createExecution('send_assignment_email', payload, false, '/', 'POST' as any);
-      console.log(`✅ Notificaciones enviadas a ${toNotify.length} evaluadores.`);
       setSaved(true);
     } catch (funcErr) {
       console.error('Error invocando función de correos:', funcErr);
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   }
 
   if (loading) return <div className="p-10 flex justify-center"><LoadingSpinner /></div>;
 
-  const candidates = allEmployees.filter((e) => e.$id !== selectedEvaluated?.$id);
-
-  let hasChanges = false;
-  let hasEvaluatorsSaved = false;
-
-  if (selectedEvaluated) {
-    const currentFromDB = assignments
-      .filter((a) => a.evaluated_id === selectedEvaluated.$id)
-      .map((a) => a.evaluator_id);
-    
-    if (currentFromDB.length > 0) hasEvaluatorsSaved = true;
-
-    const evaluatorsToAssign = Array.from(selectedEvaluatorIds);
-    if (!evaluatorsToAssign.includes(selectedEvaluated.$id)) {
-      evaluatorsToAssign.push(selectedEvaluated.$id);
-    }
-    
-    if (evaluatorsToAssign.length !== currentFromDB.length) {
-      hasChanges = true;
-    } else {
-      hasChanges = evaluatorsToAssign.some(id => !currentFromDB.includes(id));
-    }
+  if (!evaluatee) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center p-10 text-center gap-3">
+        <div className="w-14 h-14 bg-amber-50 rounded-full flex items-center justify-center">
+          <svg className="w-7 h-7 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+        </div>
+        <p className="text-surface-700 font-semibold">Este ciclo no tiene un evaluado asignado</p>
+        <p className="text-surface-400 text-sm">Crea un nuevo ciclo asegurándote de seleccionar a quién se evaluará.</p>
+      </div>
+    );
   }
 
+  const candidates = allEmployees.filter(e => e.$id !== evaluatee.$id);
+  const filteredCandidates = candidates.filter(e => {
+    const q = search.toLowerCase().trim();
+    if (!q) return true;
+    return e.name.toLowerCase().includes(q) || (e.department ?? '').toLowerCase().includes(q);
+  });
+
+  const currentFromDB = assignments.filter(a => a.evaluated_id === evaluatee.$id).map(a => a.evaluator_id);
+  const hasEvaluatorsSaved = currentFromDB.length > 0;
+  const evaluatorsToAssign = Array.from(selectedEvaluatorIds);
+  if (!evaluatorsToAssign.includes(evaluatee.$id)) evaluatorsToAssign.push(evaluatee.$id);
+  const hasChanges = evaluatorsToAssign.length !== currentFromDB.length || evaluatorsToAssign.some(id => !currentFromDB.includes(id));
+  const peerCount = Array.from(selectedEvaluatorIds).filter(id => id !== evaluatee.$id).length;
+
   return (
-    <div className="flex flex-col md:flex-row h-full divide-y md:divide-y-0 md:divide-x divide-surface-200">
-      {/* List of everyone, to choose who to evaluate */}
-      <div className="w-full md:w-1/2 flex flex-col h-1/2 md:h-full bg-white">
-        <div className="p-4 border-b border-surface-100 bg-surface-50/50 shrink-0">
-          <p className="text-xs font-bold text-surface-600 uppercase tracking-wider">1. ¿A quién evaluar en este ciclo?</p>
-          <p className="text-xs text-surface-400 mt-1">Selecciona a un colaborador para asignarle sus evaluadores.</p>
-          <div className="mt-3 relative">
+    <div className="flex flex-col h-full bg-white">
+      {/* Evaluatee Header */}
+      <div className="px-6 py-4 bg-primary-50 border-b border-primary-100 shrink-0">
+        <p className="text-[10px] font-bold text-primary-500 uppercase tracking-widest mb-2">Persona evaluada en este ciclo</p>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-primary-500 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-sm">
+            {evaluatee.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
+          </div>
+          <div>
+            <p className="font-bold text-surface-800 text-base">{evaluatee.name}</p>
+            <p className="text-xs text-surface-500">{evaluatee.department ?? 'Sin área'}</p>
+          </div>
+          <div className="ml-auto text-right">
+            <p className="text-2xl font-bold text-primary-600">{peerCount}</p>
+            <p className="text-[10px] text-surface-400 uppercase tracking-wide">evaluadores</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="px-6 py-3 border-b border-surface-100 bg-surface-50/50 flex gap-2 shrink-0">
+        <button
+          onClick={() => saveAssignments(false)}
+          disabled={saving || (!hasChanges && hasEvaluatorsSaved)}
+          className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors border shadow-sm ${
+            !hasChanges && hasEvaluatorsSaved
+              ? 'bg-surface-100 text-surface-400 border-surface-200 cursor-not-allowed shadow-none'
+              : saved && !saving
+              ? 'bg-green-50 text-green-700 border-green-200'
+              : 'bg-white text-surface-700 border-surface-300 hover:border-primary-300'
+          } disabled:opacity-50`}
+        >
+          {saving ? 'Guardando...' : !hasChanges && hasEvaluatorsSaved ? 'Sin cambios' : saved ? '¡Guardado!' : 'Guardar asignaciones'}
+        </button>
+
+        {hasChanges ? (
+          <button
+            onClick={() => saveAssignments(true)}
+            disabled={saving}
+            className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm ${saved && !saving ? 'bg-green-500 text-white' : 'bg-primary-500 text-white hover:bg-primary-600'} disabled:opacity-50`}
+          >
+            {saving ? 'Guardando...' : saved ? '¡Guardado y Notificado!' : 'Guardar y notificar'}
+          </button>
+        ) : (
+          <button
+            onClick={() => sendNotifications()}
+            disabled={saving || !hasEvaluatorsSaved}
+            className="flex-1 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm bg-primary-500 text-white hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {saving ? 'Enviando...' : '📧 Reenviar notificaciones'}
+          </button>
+        )}
+      </div>
+
+      {/* Evaluators List */}
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="px-6 py-3 border-b border-surface-100 shrink-0">
+          <p className="text-xs font-bold text-surface-600 uppercase tracking-wider mb-2">Selecciona a los evaluadores</p>
+          <div className="relative">
             <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
             </svg>
             <input
               type="text"
-              placeholder="Buscar colaborador..."
-              value={searchEvaluated}
-              onChange={e => setSearchEvaluated(e.target.value)}
-              className="w-full pl-8 pr-3 py-2 text-xs border border-surface-200 rounded-xl outline-none focus:border-primary-400 bg-white transition-colors"
+              placeholder="Buscar evaluador por nombre o área..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-8 pr-3 py-2 text-xs border border-surface-200 rounded-xl outline-none focus:border-primary-400 bg-surface-50 transition-colors"
             />
           </div>
         </div>
-        <div className="overflow-y-auto flex-1 p-3 space-y-2">
-          {allEmployees.filter(e => {
-            const q = searchEvaluated.toLowerCase().trim();
-            if (!q) return true;
-            return e.name.toLowerCase().includes(q) || (e.department ?? '').toLowerCase().includes(q);
-          }).map(emp => {
-            const isSelected = selectedEvaluated?.$id === emp.$id;
-            const count = assignments.filter((a) => a.evaluated_id === emp.$id && a.evaluator_id !== emp.$id).length;
-            const hasSelfEval = assignments.some(a => a.evaluated_id === emp.$id && a.evaluator_id === emp.$id);
-            const isInCycle = count > 0 || hasSelfEval;
+        <div className="overflow-y-auto flex-1 p-3 space-y-1">
+          {filteredCandidates.map(emp => {
+            const isChecked = selectedEvaluatorIds.has(emp.$id);
             return (
-              <button
-                key={emp.$id}
-                onClick={() => selectEmployee(emp)}
-                className={`w-full text-left p-3.5 rounded-xl flex items-center justify-between transition-all duration-200 ${
-                  isSelected ? 'bg-primary-50 border-primary-300 shadow-md border' : 'hover:bg-white hover:shadow-md hover:-translate-y-0.5 hover:border-primary-200 border-transparent border'
-                }`}
-              >
-                <div>
-                  <p className={`text-sm font-medium ${isSelected ? 'text-primary-800' : 'text-surface-700'}`}>{emp.name}</p>
-                  <p className="text-[11px] text-surface-400 uppercase tracking-wide mt-0.5">{emp.department ?? 'Sin área'}</p>
+              <label key={emp.$id} className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-200 border ${isChecked ? 'bg-primary-50/30 border-primary-200' : 'bg-transparent border-transparent hover:bg-surface-50 hover:border-surface-200'}`}>
+                <input type="checkbox" className="hidden" checked={isChecked} onChange={() => toggleEvaluator(emp.$id)} />
+                <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${isChecked ? 'bg-primary-500 border-primary-500' : 'bg-white border-surface-300'}`}>
+                  {isChecked && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                 </div>
-                {isInCycle && (
-                  <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-green-100 text-green-700">{count} evaluadores</span>
-                )}
-              </button>
+                <div>
+                  <span className={`text-sm block ${isChecked ? 'font-medium text-surface-800' : 'text-surface-600'}`}>{emp.name}</span>
+                  <span className="text-[10px] text-surface-400 uppercase tracking-wide">{emp.department ?? 'Sin área'}</span>
+                </div>
+              </label>
             );
           })}
+          {filteredCandidates.length === 0 && (
+            <div className="py-10 text-center text-surface-400 text-sm">No se encontraron colaboradores.</div>
+          )}
         </div>
-      </div>
-
-      {/* Select Evaluators for the chosen person */}
-      <div className="w-full md:w-1/2 flex flex-col h-1/2 md:h-full bg-surface-50">
-        {!selectedEvaluated ? (
-          <div className="m-auto text-center p-8">
-            <div className="w-12 h-12 bg-surface-200 rounded-full flex items-center justify-center mx-auto mb-3">
-              <svg className="w-6 h-6 text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" /></svg>
-            </div>
-            <p className="text-surface-500 text-sm">Selecciona un colaborador a la izquierda para empezar.</p>
-          </div>
-        ) : (
-          <>
-            <div className="p-4 border-b border-surface-200 bg-white flex flex-col gap-3 shrink-0">
-              <div>
-                <p className="text-xs font-bold text-surface-800 uppercase tracking-wider">
-                  2. ¿Quién evaluará a <span className="text-primary-600">{selectedEvaluated.name.split(' ')[0]}</span>?
-                </p>
-                <p className="text-xs text-surface-500 mt-1">La autoevaluación se genera automáticamente.</p>
-              </div>
-              <div className="flex gap-2">
-                {/* Guardar cambios (solo activo si hay cambios) */}
-                <button
-                  onClick={() => saveAssignments(false)}
-                  disabled={saving || (!hasChanges && hasEvaluatorsSaved)}
-                  className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors border ${
-                    !hasChanges && hasEvaluatorsSaved
-                      ? 'bg-surface-100 text-surface-400 border-surface-200 cursor-not-allowed'
-                      : saved && !saving
-                      ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
-                      : 'bg-white text-surface-700 border-surface-300 hover:bg-surface-50 hover:border-primary-300'
-                  } disabled:opacity-50`}
-                >
-                  {saving ? '...' : !hasChanges && hasEvaluatorsSaved ? 'Sin cambios' : saved ? '¡Guardado!' : 'Guardar'}
-                </button>
-
-                {/* Notificar: siempre activo si hay evaluadores asignados, con o sin cambios */}
-                {hasChanges ? (
-                  <button
-                    onClick={() => saveAssignments(true)}
-                    disabled={saving}
-                    className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm ${
-                      saved && !saving
-                        ? 'bg-green-500 text-white hover:bg-green-600'
-                        : 'bg-primary-500 text-white hover:bg-primary-600'
-                    } disabled:opacity-50`}
-                  >
-                    {saving ? 'Guardando...' : saved ? '¡Guardado!' : 'Guardar y notificar'}
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => sendNotifications()}
-                    disabled={saving || !hasEvaluatorsSaved}
-                    title={hasEvaluatorsSaved ? 'Reenviar notificaciones a los evaluadores ya asignados' : 'No hay evaluadores asignados'}
-                    className="flex-1 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm bg-primary-500 text-white hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    {saving ? 'Enviando...' : '📧 Reenviar notificaciones'}
-                  </button>
-                )}
-              </div>
-            </div>
-            <div className="overflow-y-auto flex-1 p-3 space-y-2">
-              {candidates.map(emp => {
-                const isChecked = selectedEvaluatorIds.has(emp.$id);
-                return (
-                  <label key={emp.$id} className={`flex items-center gap-3 p-3.5 rounded-xl cursor-pointer transition-all duration-200 border ${isChecked ? 'bg-white border-primary-300 shadow-md' : 'bg-surface-50/50 border-surface-200 hover:bg-white hover:shadow-md hover:-translate-y-0.5 hover:border-primary-200'}`}>
-                    <input type="checkbox" className="hidden" checked={isChecked} onChange={() => toggleEvaluator(emp.$id)} />
-                    <div className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors ${isChecked ? 'bg-primary-500 border-primary-500' : 'bg-white border-surface-300'}`}>
-                      {isChecked && <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
-                    </div>
-                    <div>
-                      <span className={`text-sm block ${isChecked ? 'font-medium text-surface-800' : 'text-surface-600'}`}>{emp.name}</span>
-                      <span className="text-[10px] text-surface-400 uppercase tracking-wide">{emp.department ?? 'Sin área'}</span>
-                    </div>
-                  </label>
-                );
-              })}
-              {candidates.length === 0 && (
-                <div className="py-10 text-center text-surface-400 text-sm">
-                  No hay otros colaboradores disponibles.
-                </div>
-              )}
-            </div>
-          </>
-        )}
       </div>
     </div>
   );

@@ -29,6 +29,7 @@ export interface EvaluationCycle {
   status: CycleStatus;
   start_date?: string;
   end_date?: string;
+  evaluated_employee_id?: string;
 }
 
 export interface Question {
