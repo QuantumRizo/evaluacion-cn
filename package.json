@@ -1,14 +1,19 @@
 {
-  "name": "evaluacion_cn",
+  "name": "evaluacion-cn",
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "packageManager": "npm@11.16.0",
+  "engines": {
+    "node": ">=24 <25"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "init-db": "node scripts/init-appwrite-db.js"
+    "init-db": "node scripts/init-appwrite-db.js",
+    "check": "npm run lint && npm run build"
   },
   "dependencies": {
     "appwrite": "^26.0.0",
