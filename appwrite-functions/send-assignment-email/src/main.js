@@ -39,9 +39,20 @@ export default async ({ req, res, log, error }) => {
     // 3. Consultar la base de datos para obtener al Evaluado y el Ciclo
     log(`Consultando datos para Evaluado: ${evaluated_id}, Ciclo: ${cycle_id}`);
     
-    const [evaluatedRes, cycleRes] = await Promise.all([
+    const [evaluatedRes, cycleRes, questionsRes, responsesRes, commentsRes] = await Promise.all([
       databases.listDocuments(DB_ID, 'employees', [Query.equal('$id', evaluated_id), Query.limit(1)]),
-      databases.listDocuments(DB_ID, 'evaluation_cycles', [Query.equal('$id', cycle_id), Query.limit(1)])
+      databases.listDocuments(DB_ID, 'evaluation_cycles', [Query.equal('$id', cycle_id), Query.limit(1)]),
+      databases.listDocuments(DB_ID, 'questions', [Query.limit(5000)]),
+      databases.listDocuments(DB_ID, 'responses', [
+        Query.equal('cycle_id', cycle_id),
+        Query.equal('evaluated_id', evaluated_id),
+        Query.limit(5000),
+      ]),
+      databases.listDocuments(DB_ID, 'evaluation_comments', [
+        Query.equal('cycle_id', cycle_id),
+        Query.equal('evaluated_id', evaluated_id),
+        Query.limit(5000),
+      ]),
     ]);
 
     if (!evaluatedRes.documents.length || !cycleRes.documents.length) {
@@ -51,6 +62,38 @@ export default async ({ req, res, log, error }) => {
 
     const evaluated = evaluatedRes.documents[0];
     const cycle = cycleRes.documents[0];
+
+    // Defense in depth: even if a client sends every assignment, only retain
+    // evaluators who have not completed every question and both comment fields.
+    const requiredQuestionIds = new Set(questionsRes.documents.map((question) => question.$id));
+    const uniqueEvaluatorIds = Array.from(new Set(evaluator_ids));
+    const pendingEvaluatorIds = uniqueEvaluatorIds.filter((evaluatorId) => {
+      const answeredQuestionIds = new Set(
+        responsesRes.documents
+          .filter((response) => response.evaluator_id === evaluatorId)
+          .map((response) => response.question_id)
+      );
+      const hasAllResponses = requiredQuestionIds.size > 0 &&
+        Array.from(requiredQuestionIds).every((questionId) => answeredQuestionIds.has(questionId));
+      const hasAllComments = commentsRes.documents.some((comment) =>
+        comment.evaluator_id === evaluatorId &&
+        (comment.strengths?.trim().length ?? 0) > 0 &&
+        (comment.opportunities?.trim().length ?? 0) > 0
+      );
+      return !hasAllResponses || !hasAllComments;
+    });
+
+    const skippedCount = uniqueEvaluatorIds.length - pendingEvaluatorIds.length;
+    log(`Recordatorios pendientes: ${pendingEvaluatorIds.length}; evaluaciones completas omitidas: ${skippedCount}`);
+
+    if (pendingEvaluatorIds.length === 0) {
+      return res.json({
+        success: true,
+        message: 'Todos los evaluadores ya completaron. No se enviaron correos.',
+        successCount: 0,
+        skippedCount,
+      });
+    }
 
     // Formatear la fecha límite si existe
     const deadline = cycle.end_date 
@@ -70,7 +113,7 @@ export default async ({ req, res, log, error }) => {
     const errors = [];
 
     // 5. Iterar sobre la lista de evaluadores
-    for (const evaluatorId of evaluator_ids) {
+    for (const evaluatorId of pendingEvaluatorIds) {
       log(`Procesando envío para evaluador: ${evaluatorId}`);
       try {
         const evaluatorRes = await databases.listDocuments(DB_ID, 'employees', [Query.equal('$id', evaluatorId), Query.limit(1)]);
@@ -168,6 +211,9 @@ export default async ({ req, res, log, error }) => {
     return res.json({ 
       success: true, 
       message: `Proceso finalizado. Éxitos: ${successCount}, Fallos: ${failCount}`,
+      successCount,
+      failCount,
+      skippedCount,
       errors: errors.length > 0 ? errors : undefined
     });
 

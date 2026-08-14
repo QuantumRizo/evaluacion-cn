@@ -565,10 +565,45 @@ function CycleAssignments({ cycle, allEmployees, evaluatee }: { cycle: Evaluatio
     if (!evaluatee) return;
     setSaving(true);
     try {
-      const toNotify = evaluatorIds ?? assignments
-        .filter(a => a.evaluated_id === evaluatee.$id)
-        .map(a => a.evaluator_id);
-      const payload = JSON.stringify({ cycle_id: cycle.$id, evaluated_id: evaluatee.$id, evaluator_ids: toNotify });
+      const candidates = Array.from(new Set(
+        evaluatorIds ?? assignments
+          .filter(a => a.evaluated_id === evaluatee.$id)
+          .map(a => a.evaluator_id)
+      ));
+
+      const [questions, responses, comments] = await Promise.all([
+        fetchAllDocuments<Question>(COLLECTIONS.QUESTIONS),
+        fetchAllDocuments<Response>(COLLECTIONS.RESPONSES, [
+          Query.equal('cycle_id', cycle.$id),
+          Query.equal('evaluated_id', evaluatee.$id),
+        ]),
+        fetchAllDocuments<EvaluationComment>(COLLECTIONS.EVALUATION_COMMENTS, [
+          Query.equal('cycle_id', cycle.$id),
+          Query.equal('evaluated_id', evaluatee.$id),
+        ]),
+      ]);
+
+      const pendingEvaluatorIds = candidates.filter((evaluatorId) =>
+        !hasCompletedEvaluation(
+          responses,
+          comments,
+          questions,
+          evaluatorId,
+          evaluatee.$id,
+        )
+      );
+
+      if (pendingEvaluatorIds.length === 0) {
+        setSaved(true);
+        alert('Todos los evaluadores asignados ya completaron su evaluación. No se enviaron recordatorios.');
+        return;
+      }
+
+      const payload = JSON.stringify({
+        cycle_id: cycle.$id,
+        evaluated_id: evaluatee.$id,
+        evaluator_ids: pendingEvaluatorIds,
+      });
       await functions.createExecution('send_assignment_email', payload, false, '/', ExecutionMethod.POST);
       setSaved(true);
     } catch (funcErr) {
@@ -654,7 +689,7 @@ function CycleAssignments({ cycle, allEmployees, evaluatee }: { cycle: Evaluatio
             disabled={saving || !hasEvaluatorsSaved}
             className="flex-1 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm bg-primary-500 text-white hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {saving ? 'Enviando...' : 'Reenviar notificaciones'}
+            {saving ? 'Enviando...' : 'Recordar solo a pendientes'}
           </button>
         )}
       </div>
