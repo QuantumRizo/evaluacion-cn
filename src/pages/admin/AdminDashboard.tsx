@@ -649,12 +649,6 @@ function CycleAssignments({ cycle, allEmployees, evaluatee }: { cycle: Evaluatio
   }
 
   const candidates = allEmployees.filter(e => e.$id !== evaluatee.$id);
-  const filteredCandidates = candidates.filter(e => {
-    const q = search.toLowerCase().trim();
-    if (!q) return true;
-    return e.name.toLowerCase().includes(q) || (e.department ?? '').toLowerCase().includes(q);
-  });
-
   const currentFromDB = assignments.filter(a => a.evaluated_id === evaluatee.$id).map(a => a.evaluator_id);
   const assignedEvaluatorIds = Array.from(new Set(currentFromDB));
   const completedEvaluatorIds = new Set(
@@ -676,6 +670,27 @@ function CycleAssignments({ cycle, allEmployees, evaluatee }: { cycle: Evaluatio
   const evaluatorsToAssign = Array.from(selectedEvaluatorIds);
   if (!evaluatorsToAssign.includes(evaluatee.$id)) evaluatorsToAssign.push(evaluatee.$id);
   const hasChanges = evaluatorsToAssign.length !== currentFromDB.length || evaluatorsToAssign.some(id => !currentFromDB.includes(id));
+
+  const filteredCandidates = candidates
+    .filter(e => {
+      const q = search.toLowerCase().trim();
+      if (!q) return true;
+      return e.name.toLowerCase().includes(q) || (e.department ?? '').toLowerCase().includes(q);
+    })
+    .sort((a, b) => {
+      const aSelected = selectedEvaluatorIds.has(a.$id);
+      const bSelected = selectedEvaluatorIds.has(b.$id);
+      if (aSelected !== bSelected) return aSelected ? -1 : 1;
+
+      // Within the selected group, keep pending work above completed work.
+      if (aSelected && bSelected) {
+        const aCompleted = completedEvaluatorIds.has(a.$id);
+        const bCompleted = completedEvaluatorIds.has(b.$id);
+        if (aCompleted !== bCompleted) return aCompleted ? 1 : -1;
+      }
+
+      return a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
+    });
 
   return (
     <div className="flex flex-col h-full bg-white">
