@@ -21,6 +21,8 @@ interface AuthContextType {
   logout: () => Promise<void>;
 }
 
+type AuthStatus = 'authenticated' | 'inactive' | 'missing-profile' | 'unauthenticated';
+
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -32,7 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkAuth();
   }, []);
 
-  async function checkAuth() {
+  async function checkAuth(): Promise<AuthStatus> {
     try {
       const currentUser = await account.get();
       setUser(currentUser);
@@ -44,13 +46,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
 
       if (result.documents.length > 0) {
-        setEmployee(result.documents[0] as unknown as Employee);
+        const employeeDoc = result.documents[0] as unknown as Employee;
+        if (employeeDoc.is_active === false) {
+          await account.deleteSession('current');
+          setUser(null);
+          setEmployee(null);
+          return 'inactive';
+        }
+
+        setEmployee(employeeDoc);
+        return 'authenticated';
       } else {
+        await account.deleteSession('current');
+        setUser(null);
         setEmployee(null);
+        return 'missing-profile';
       }
     } catch {
       setUser(null);
       setEmployee(null);
+      return 'unauthenticated';
     } finally {
       setIsLoading(false);
     }
@@ -58,7 +73,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     await account.createEmailPasswordSession(email, password);
-    await checkAuth();
+    const status = await checkAuth();
+    if (status === 'inactive') throw new Error('EMPLOYEE_INACTIVE');
+    if (status !== 'authenticated') throw new Error('EMPLOYEE_PROFILE_NOT_FOUND');
   }, []);
 
   const logout = useCallback(async () => {
@@ -83,6 +100,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// This module intentionally exports the provider and its companion hook together.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');

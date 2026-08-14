@@ -16,7 +16,7 @@ export default function ProtectedRoute({
 
   if (isLoading) return <LoadingSpinner fullPage />;
 
-  if (!user || !employee) {
+  if (!user || !employee || employee.is_active === false) {
     return <Navigate to="/login" replace />;
   }
 

@@ -5,9 +5,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { databases, fetchAllDocuments, Query } from '../../lib/appwrite';
 import { ID } from 'appwrite';
 import { DB_ID, COLLECTIONS, CATEGORY_ORDER, CATEGORY_LABELS } from '../../lib/constants';
+import { hasAllRequiredResponses, hasRequiredComments, uniqueResponsesByEvaluatorAndQuestion } from '../../lib/evaluations';
 import Navbar from '../../components/Navbar';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import type { Employee, EvaluationCycle, Question, Response, FinalReport, CategoryScore } from '../../types';
+import type { Employee, EvaluationCycle, Question, Response, FinalReport, CategoryScore, EvaluationComment } from '../../types';
 
 export default function AdminReportPage() {
   const { cycleId, employeeId } = useParams<{ cycleId: string; employeeId: string }>();
@@ -22,15 +23,27 @@ export default function AdminReportPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const [comments, setComments] = useState<any[]>([]);
+  const [comments, setComments] = useState<EvaluationComment[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
 
   const [adminSummary, setAdminSummary] = useState('');
   const [finalScore, setFinalScore] = useState<number | ''>('');
 
   // Computed scores
-  const selfResponses = responses.filter((r) => r.evaluation_type === 'self');
-  const peerResponses = responses.filter((r) => r.evaluation_type === 'peer');
+  const completedEvaluatorIds = new Set(
+    Array.from(new Set(responses.map((response) => response.evaluator_id))).filter((evaluatorId) => {
+      const evaluatorResponses = responses.filter((response) => response.evaluator_id === evaluatorId);
+      const hasComments = comments.some((comment) =>
+        comment.evaluator_id === evaluatorId && hasRequiredComments(comment)
+      );
+      return hasAllRequiredResponses(evaluatorResponses, questions) && hasComments;
+    })
+  );
+  const completedResponses = uniqueResponsesByEvaluatorAndQuestion(
+    responses.filter((response) => completedEvaluatorIds.has(response.evaluator_id))
+  );
+  const selfResponses = completedResponses.filter((r) => r.evaluation_type === 'self');
+  const peerResponses = completedResponses.filter((r) => r.evaluation_type === 'peer');
   const uniquePeerCount = new Set(peerResponses.map((r) => r.evaluator_id)).size;
   const totalQ = questions.length;
 
@@ -70,11 +83,6 @@ export default function AdminReportPage() {
     };
   }).filter((c) => c.questionCount > 0);
 
-  useEffect(() => {
-    if (employeeId && cycleId) loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [employeeId, cycleId]);
-
   async function loadData() {
     try {
       const [empDoc, cycleDoc, allQuestions] = await Promise.all([
@@ -97,7 +105,7 @@ export default function AdminReportPage() {
           Query.equal('cycle_id', cycleId!),
           Query.limit(1),
         ]),
-        fetchAllDocuments<any>(COLLECTIONS.EVALUATION_COMMENTS, [
+        fetchAllDocuments<EvaluationComment>(COLLECTIONS.EVALUATION_COMMENTS, [
           Query.equal('evaluated_id', employeeId!),
           Query.equal('cycle_id', cycleId!),
         ]),
@@ -120,6 +128,13 @@ export default function AdminReportPage() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    // Initial remote report load for this route.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (employeeId && cycleId) loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employeeId, cycleId]);
 
   async function saveReport() {
     if (!cycle || !employeeId) return;

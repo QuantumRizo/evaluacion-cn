@@ -3,10 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { databases, fetchAllDocuments, Query } from '../lib/appwrite';
 import { ID } from 'appwrite';
 import { DB_ID, COLLECTIONS, SCORE_OPTIONS, CATEGORY_ORDER, CATEGORY_LABELS } from '../lib/constants';
+import { hasAllRequiredResponses, hasRequiredComments } from '../lib/evaluations';
 import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 import LoadingSpinner from '../components/LoadingSpinner';
-import type { Employee, EvaluationCycle, Question, EvaluationComment } from '../types';
+import type { Employee, EvaluationCycle, Question, EvaluationComment, Response as EvaluationResponse } from '../types';
 
 type Answers = Record<string, number>;
 
@@ -26,73 +27,63 @@ export default function EvaluationFormPage() {
   const [submittingComment, setSubmittingComment] = useState(false);
   const [alreadyDone, setAlreadyDone] = useState(false);
   const [alreadyCommented, setAlreadyCommented] = useState(false);
+  const [existingResponses, setExistingResponses] = useState<EvaluationResponse[]>([]);
+  const [existingCommentDocs, setExistingCommentDocs] = useState<EvaluationComment[]>([]);
   const [existingCommentDoc, setExistingCommentDoc] = useState<EvaluationComment | null>(null);
   const [error, setError] = useState('');
   const [commentSaved, setCommentSaved] = useState(false);
 
   const isSelf = evaluatedId === currentEmployee?.$id;
 
-  useEffect(() => {
-    if (currentEmployee && evaluatedId) loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentEmployee, evaluatedId]);
-
   async function loadData() {
     try {
-      // Get evaluated employee profile
-      const empDoc = await databases.getDocument(DB_ID, COLLECTIONS.EMPLOYEES, evaluatedId!);
-      setEvaluatedEmployee(empDoc as unknown as Employee);
-
-      // Get specific cycle
-      const cycleDoc = await databases.getDocument(DB_ID, COLLECTIONS.EVALUATION_CYCLES, cycleId!);
-      setCycle(cycleDoc as unknown as EvaluationCycle);
-
-      // Check if already evaluated
-      const existing = await databases.listDocuments(DB_ID, COLLECTIONS.RESPONSES, [
-        Query.equal('evaluator_id', currentEmployee!.$id),
-        Query.equal('evaluated_id', evaluatedId!),
-        Query.equal('cycle_id', cycleId!),
-        Query.limit(1),
-      ]);
-
-      if (existing.total > 0) {
-        setAlreadyDone(true);
-
-        // Check if they already left a comment
-        const existingComment = await databases.listDocuments(DB_ID, COLLECTIONS.EVALUATION_COMMENTS, [
+      const [empDoc, cycleDoc, allQuestions, responseDocs, commentDocs] = await Promise.all([
+        databases.getDocument(DB_ID, COLLECTIONS.EMPLOYEES, evaluatedId!),
+        databases.getDocument(DB_ID, COLLECTIONS.EVALUATION_CYCLES, cycleId!),
+        fetchAllDocuments<Question>(COLLECTIONS.QUESTIONS, [Query.orderAsc('order')]),
+        fetchAllDocuments<EvaluationResponse>(COLLECTIONS.RESPONSES, [
           Query.equal('evaluator_id', currentEmployee!.$id),
           Query.equal('evaluated_id', evaluatedId!),
           Query.equal('cycle_id', cycleId!),
-          Query.limit(1),
-        ]);
-
-        if (existingComment.total > 0) {
-          const doc = existingComment.documents[0] as unknown as EvaluationComment;
-          
-          const hasAllComments = (doc.strengths?.trim().length ?? 0) > 0 && 
-                                 (doc.opportunities?.trim().length ?? 0) > 0;
-
-          setAlreadyCommented(hasAllComments);
-          setExistingCommentDoc(doc);
-          setStrengths(doc.strengths ?? '');
-          setOpportunities(doc.opportunities ?? '');
-        }
-
-        setLoading(false);
-        return;
-      }
-
-      // Load questions sorted by order
-      const allQuestions = await fetchAllDocuments<Question>(COLLECTIONS.QUESTIONS, [
-        Query.orderAsc('order'),
+        ]),
+        fetchAllDocuments<EvaluationComment>(COLLECTIONS.EVALUATION_COMMENTS, [
+          Query.equal('evaluator_id', currentEmployee!.$id),
+          Query.equal('evaluated_id', evaluatedId!),
+          Query.equal('cycle_id', cycleId!),
+        ]),
       ]);
+
+      setEvaluatedEmployee(empDoc as unknown as Employee);
+      setCycle(cycleDoc as unknown as EvaluationCycle);
       setQuestions(allQuestions);
+      setExistingResponses(responseDocs);
+      setExistingCommentDocs(commentDocs);
+
+      const savedAnswers: Answers = {};
+      for (const response of responseDocs) {
+        savedAnswers[response.question_id] = response.score;
+      }
+      setAnswers(savedAnswers);
+      setAlreadyDone(hasAllRequiredResponses(responseDocs, allQuestions));
+
+      const commentDoc = commentDocs.find(hasRequiredComments) ?? commentDocs[0] ?? null;
+      setExistingCommentDoc(commentDoc);
+      setAlreadyCommented(hasRequiredComments(commentDoc));
+      setStrengths(commentDoc?.strengths ?? '');
+      setOpportunities(commentDoc?.opportunities ?? '');
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    // Initial remote data load for this route.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (currentEmployee && evaluatedId) loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentEmployee, cycleId, evaluatedId]);
 
   function setAnswer(questionId: string, rawValue: number, isInverted: boolean) {
     const score = isInverted ? 1.25 - rawValue : rawValue;
@@ -109,32 +100,77 @@ export default function EvaluationFormPage() {
     setSubmitting(true);
     setError('');
 
+    let transactionId: string | null = null;
     try {
       const evaluationType = isSelf ? 'self' : 'peer';
-      await Promise.all(questions.map(question =>
-        databases.createDocument(DB_ID, COLLECTIONS.RESPONSES, ID.unique(), {
+
+      const transaction = await databases.createTransaction();
+      transactionId = transaction.$id;
+
+      // Replace any partial or duplicated attempt atomically.
+      for (const response of existingResponses) {
+        await databases.deleteDocument(DB_ID, COLLECTIONS.RESPONSES, response.$id, transactionId);
+      }
+
+      for (const question of questions) {
+        await databases.createDocument(DB_ID, COLLECTIONS.RESPONSES, ID.unique(), {
           cycle_id: cycle.$id,
           question_id: question.$id,
           evaluator_id: currentEmployee.$id,
           evaluated_id: evaluatedId,
           score: answers[question.$id],
           evaluation_type: evaluationType,
-        })
-      ));
+        }, undefined, transactionId);
+      }
 
       // Save comment (required)
-      await databases.createDocument(DB_ID, COLLECTIONS.EVALUATION_COMMENTS, ID.unique(), {
-        cycle_id: cycle.$id,
-        evaluator_id: currentEmployee.$id,
-        evaluated_id: evaluatedId,
-        evaluation_type: evaluationType,
+      const commentData = {
         comment: '',
         strengths: strengths.trim(),
         opportunities: opportunities.trim(),
-      });
+      };
+
+      if (existingCommentDoc) {
+        await databases.updateDocument(
+          DB_ID,
+          COLLECTIONS.EVALUATION_COMMENTS,
+          existingCommentDoc.$id,
+          commentData,
+          undefined,
+          transactionId,
+        );
+      } else {
+        await databases.createDocument(DB_ID, COLLECTIONS.EVALUATION_COMMENTS, ID.unique(), {
+          cycle_id: cycle.$id,
+          evaluator_id: currentEmployee.$id,
+          evaluated_id: evaluatedId,
+          evaluation_type: evaluationType,
+          ...commentData,
+        }, undefined, transactionId);
+      }
+
+      for (const duplicateComment of existingCommentDocs) {
+        if (duplicateComment.$id !== existingCommentDoc?.$id) {
+          await databases.deleteDocument(
+            DB_ID,
+            COLLECTIONS.EVALUATION_COMMENTS,
+            duplicateComment.$id,
+            transactionId,
+          );
+        }
+      }
+
+      await databases.updateTransaction(transactionId, true);
 
       navigate('/evaluaciones', { state: { submitted: true } });
     } catch (err) {
+      if (transactionId) {
+        try {
+          await databases.updateTransaction(transactionId, false, true);
+        } catch {
+          // The transaction may already have expired or rolled back automatically.
+        }
+      }
       console.error(err);
       setError('Ocurrió un error al guardar. Intenta de nuevo.');
       setSubmitting(false);

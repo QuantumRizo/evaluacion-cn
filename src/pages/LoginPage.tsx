@@ -31,6 +31,10 @@ export default function LoginPage() {
         err instanceof Error ? err.message : 'Error al iniciar sesión';
       if (message.includes('Invalid credentials') || message.includes('401')) {
         setError('Correo o contraseña incorrectos.');
+      } else if (message.includes('EMPLOYEE_INACTIVE')) {
+        setError('Tu acceso está desactivado. Contacta al administrador.');
+      } else if (message.includes('EMPLOYEE_PROFILE_NOT_FOUND')) {
+        setError('Tu cuenta no está vinculada a un perfil de empleado.');
       } else {
         setError('Ocurrió un error. Inténtalo de nuevo.');
       }

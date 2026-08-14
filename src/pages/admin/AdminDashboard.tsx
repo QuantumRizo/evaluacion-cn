@@ -1,12 +1,13 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { databases, fetchAllDocuments, Query, functions } from '../../lib/appwrite';
-import { ID } from 'appwrite';
+import { ExecutionMethod, ID } from 'appwrite';
 import { DB_ID, COLLECTIONS, CATEGORY_ORDER, CATEGORY_LABELS } from '../../lib/constants';
+import { hasAllRequiredResponses, hasRequiredComments, uniqueResponsesByEvaluatorAndQuestion } from '../../lib/evaluations';
 import Navbar from '../../components/Navbar';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import EmployeesTab from '../../components/admin/EmployeesTab';
-import type { Employee, EvaluationCycle, Response, EvaluationAssignment } from '../../types';
+import type { Employee, EvaluationCycle, Response, EvaluationAssignment, EvaluationComment, Question } from '../../types';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -18,6 +19,25 @@ interface EmployeeStats extends Employee {
 }
 
 type Tab = 'ciclos' | 'resultados' | 'empleados';
+
+function hasCompletedEvaluation(
+  responses: Response[],
+  comments: EvaluationComment[],
+  questions: Question[],
+  evaluatorId: string,
+  evaluatedId: string,
+): boolean {
+  const evaluationResponses = responses.filter((response) =>
+    response.evaluator_id === evaluatorId && response.evaluated_id === evaluatedId
+  );
+  const hasComments = comments.some((comment) =>
+    comment.evaluator_id === evaluatorId &&
+    comment.evaluated_id === evaluatedId &&
+    hasRequiredComments(comment)
+  );
+
+  return hasAllRequiredResponses(evaluationResponses, questions) && hasComments;
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -56,9 +76,9 @@ export default function AdminDashboard() {
   const [cycleData, setCycleData] = useState<{
     responses: Response[];
     assignments: EvaluationAssignment[];
-    comments: any[];
+    comments: EvaluationComment[];
   } | null>(null);
-  const [allQuestions, setAllQuestions] = useState<any[]>([]);
+  const [allQuestions, setAllQuestions] = useState<Question[]>([]);
 
   // Removed progress tab state
   const loadData = useCallback(async () => {
@@ -67,7 +87,7 @@ export default function AdminDashboard() {
       const [cyclesResult, emps, qs] = await Promise.all([
         databases.listDocuments(DB_ID, COLLECTIONS.EVALUATION_CYCLES, [Query.orderDesc('$createdAt')]),
         fetchAllDocuments<Employee>(COLLECTIONS.EMPLOYEES, [Query.orderAsc('name')]),
-        fetchAllDocuments<any>(COLLECTIONS.QUESTIONS),
+        fetchAllDocuments<Question>(COLLECTIONS.QUESTIONS),
       ]);
       const cycles = cyclesResult.documents as unknown as EvaluationCycle[];
       setAllCycles(cycles);
@@ -82,23 +102,21 @@ export default function AdminDashboard() {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadData(); }, [loadData]);
 
   // Set initial cycle selection once cycles are loaded
   useEffect(() => {
     if (!selectedResultCycleId && allCycles.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedResultCycleId(allCycles[0].$id);
     }
   }, [allCycles, selectedResultCycleId]);
 
-  // Use a ref for allEmployees to avoid re-triggering loadResults
-  const allEmployeesRef = useRef(allEmployees);
-  allEmployeesRef.current = allEmployees;
-
   // Load stats specifically for the selected cycle in Results
   useEffect(() => {
     async function loadResults() {
-      if (!selectedResultCycleId || allEmployeesRef.current.length === 0) return;
+      if (!selectedResultCycleId || allEmployees.length === 0) return;
       
       setCycleData(null);
       setResultsStats([]);
@@ -107,18 +125,35 @@ export default function AdminDashboard() {
         const [allResponses, cycleAssignments, allComments] = await Promise.all([
           fetchAllDocuments<Response>(COLLECTIONS.RESPONSES, [Query.equal('cycle_id', selectedResultCycleId)]),
           fetchAllDocuments<EvaluationAssignment>(COLLECTIONS.EVALUATION_ASSIGNMENTS, [Query.equal('cycle_id', selectedResultCycleId)]),
-          fetchAllDocuments<any>(COLLECTIONS.EVALUATION_COMMENTS, [Query.equal('cycle_id', selectedResultCycleId)]),
+          fetchAllDocuments<EvaluationComment>(COLLECTIONS.EVALUATION_COMMENTS, [Query.equal('cycle_id', selectedResultCycleId)]),
         ]);
 
         const totalQuestions = allQuestions.length;
         
         // We only care about employees who have at least one assignment (as evaluated) in this cycle
-        const participants = allEmployeesRef.current.filter(emp => cycleAssignments.some(a => a.evaluated_id === emp.$id));
+        const participants = allEmployees.filter(emp => cycleAssignments.some(a => a.evaluated_id === emp.$id));
 
         const stats: EmployeeStats[] = participants.map((emp) => {
           const myResponses = allResponses.filter((r) => r.evaluated_id === emp.$id);
-          const selfResponses = myResponses.filter((r) => r.evaluation_type === 'self');
-          const peerResponses = myResponses.filter((r) => r.evaluation_type === 'peer');
+          const completedEvaluatorIds = new Set(
+            cycleAssignments
+              .filter((assignment) =>
+                assignment.evaluated_id === emp.$id &&
+                hasCompletedEvaluation(
+                  allResponses,
+                  allComments,
+                  allQuestions,
+                  assignment.evaluator_id,
+                  emp.$id,
+                )
+              )
+              .map((assignment) => assignment.evaluator_id)
+          );
+          const completedResponses = uniqueResponsesByEvaluatorAndQuestion(
+            myResponses.filter((response) => completedEvaluatorIds.has(response.evaluator_id))
+          );
+          const selfResponses = completedResponses.filter((r) => r.evaluation_type === 'self');
+          const peerResponses = completedResponses.filter((r) => r.evaluation_type === 'peer');
           const uniquePeerEvaluators = new Set(peerResponses.map((r) => r.evaluator_id)).size;
           const assignedCount = cycleAssignments.filter((a) => a.evaluated_id === emp.$id).length;
 
@@ -140,7 +175,7 @@ export default function AdminDashboard() {
       }
     }
     loadResults();
-  }, [selectedResultCycleId]);
+  }, [selectedResultCycleId, allEmployees, allQuestions]);
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     {
@@ -296,19 +331,39 @@ function CyclesTab({
   }
 
   async function deleteCycle(cycleId: string) {
-    if (!window.confirm('¿Estás seguro de que deseas eliminar este ciclo? Todas las asignaciones se perderán.')) return;
+    if (!window.confirm('¿Estás seguro de que deseas eliminar este ciclo? Se eliminarán permanentemente sus asignaciones, respuestas, comentarios y reportes.')) return;
     try {
-      await databases.deleteDocument(DB_ID, COLLECTIONS.EVALUATION_CYCLES, cycleId);
-      // Delete related assignments
-      const assignmentsResponse = await databases.listDocuments(DB_ID, COLLECTIONS.EVALUATION_ASSIGNMENTS, [Query.equal('cycle_id', cycleId)]);
-      for (const a of assignmentsResponse.documents) {
-        await databases.deleteDocument(DB_ID, COLLECTIONS.EVALUATION_ASSIGNMENTS, a.$id);
+      const relatedCollections = [
+        COLLECTIONS.EVALUATION_ASSIGNMENTS,
+        COLLECTIONS.RESPONSES,
+        COLLECTIONS.EVALUATION_COMMENTS,
+        COLLECTIONS.FINAL_REPORTS,
+      ];
+
+      const relatedDocuments = await Promise.all(
+        relatedCollections.map((collectionId) =>
+          fetchAllDocuments<{ $id: string }>(collectionId, [Query.equal('cycle_id', cycleId)])
+        )
+      );
+
+      // Keep the cycle until all related data has been removed. If cleanup fails,
+      // the administrator can safely retry without leaving an invisible orphan.
+      for (let i = 0; i < relatedCollections.length; i += 1) {
+        for (const document of relatedDocuments[i]) {
+          await databases.deleteDocument(DB_ID, relatedCollections[i], document.$id);
+        }
       }
+
+      await databases.deleteDocument(DB_ID, COLLECTIONS.EVALUATION_CYCLES, cycleId);
+
       if (selectedCycle?.$id === cycleId) {
         setSelectedCycle(null);
       }
       onRefresh();
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error(err);
+      alert('No se pudo eliminar el ciclo por completo. Intenta nuevamente.');
+    }
   }
 
   return (
@@ -470,8 +525,9 @@ function CycleAssignments({ cycle, allEmployees, evaluatee }: { cycle: Evaluatio
       }
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
-  }, [cycle.$id, evaluatee?.$id]);
+  }, [cycle.$id, evaluatee]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadAssignments(); }, [loadAssignments]);
 
   function toggleEvaluator(id: string) {
@@ -513,7 +569,7 @@ function CycleAssignments({ cycle, allEmployees, evaluatee }: { cycle: Evaluatio
         .filter(a => a.evaluated_id === evaluatee.$id)
         .map(a => a.evaluator_id);
       const payload = JSON.stringify({ cycle_id: cycle.$id, evaluated_id: evaluatee.$id, evaluator_ids: toNotify });
-      await functions.createExecution('send_assignment_email', payload, false, '/', 'POST' as any);
+      await functions.createExecution('send_assignment_email', payload, false, '/', ExecutionMethod.POST);
       setSaved(true);
     } catch (funcErr) {
       console.error('Error invocando función de correos:', funcErr);
@@ -663,8 +719,8 @@ function ResultsTab({
   employees: EmployeeStats[];
   allEmployees: Employee[];
   onViewReport: (cycleId: string, empId: string) => void;
-  cycleData: { responses: Response[]; assignments: EvaluationAssignment[]; comments: any[] } | null;
-  allQuestions: any[];
+  cycleData: { responses: Response[]; assignments: EvaluationAssignment[]; comments: EvaluationComment[] } | null;
+  allQuestions: Question[];
 }) {
   const selectedCycle = cycles.find(c => c.$id === selectedCycleId);
   const evaluatedPerson = employees.length > 0 ? employees[0] : null;
@@ -812,7 +868,18 @@ function ResultsTab({
     return <div className="text-center p-10 text-surface-500">No hay ciclos creados.</div>;
   }
 
-  const completedEvaluatorsCount = new Set(responses.map(r => r.evaluator_id)).size;
+  const completedEvaluatorIds = new Set(
+    assignments
+      .filter((assignment) => hasCompletedEvaluation(
+        responses,
+        comments,
+        questions,
+        assignment.evaluator_id,
+        assignment.evaluated_id,
+      ))
+      .map((assignment) => assignment.evaluator_id)
+  );
+  const completedEvaluatorsCount = completedEvaluatorIds.size;
   const totalEvaluators = assignments.length;
   const pendingCount = totalEvaluators - completedEvaluatorsCount;
 
@@ -918,7 +985,7 @@ function ResultsTab({
                     const evaluator = allEmployees.find(e => e.$id === assignment.evaluator_id);
                     if (!evaluator) return null;
                     
-                    const hasCompleted = responses.some(r => r.evaluator_id === evaluator.$id);
+                    const hasCompleted = completedEvaluatorIds.has(evaluator.$id);
                     const isSelf = evaluator.$id === evaluatedPerson.$id;
                     
                     return (

@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { databases, fetchAllDocuments, Query } from '../lib/appwrite';
 import { DB_ID, COLLECTIONS } from '../lib/constants';
+import { hasAllRequiredResponses, hasRequiredComments } from '../lib/evaluations';
 import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 import LoadingSpinner from '../components/LoadingSpinner';
-import type { Employee, EvaluationCycle, EvaluationAssignment, Response } from '../types';
+import type { Employee, EvaluationCycle, EvaluationAssignment, EvaluationComment, Question, Response } from '../types';
 
 type TaskType = 'self' | 'peer';
 
@@ -49,11 +50,6 @@ export default function EvaluationsPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (currentEmployee) loadTasks();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentEmployee]);
-
   async function loadTasks() {
     try {
       // 1. Get ALL active cycles
@@ -69,13 +65,14 @@ export default function EvaluationsPage() {
         return;
       }
 
-      // Parallelize all 5 fetches
-      const [asEvaluator, asEvaluated, myResponses, myComments, allEmps] = await Promise.all([
+      // Load assignments, submitted data and the current required question set.
+      const [asEvaluator, asEvaluated, myResponses, myComments, allEmps, allQuestions] = await Promise.all([
         fetchAllDocuments<EvaluationAssignment>(COLLECTIONS.EVALUATION_ASSIGNMENTS, [Query.equal('evaluator_id', currentEmployee.$id)]),
         fetchAllDocuments<EvaluationAssignment>(COLLECTIONS.EVALUATION_ASSIGNMENTS, [Query.equal('evaluated_id', currentEmployee.$id)]),
         fetchAllDocuments<Response>(COLLECTIONS.RESPONSES, [Query.equal('evaluator_id', currentEmployee.$id)]),
-        fetchAllDocuments<any>(COLLECTIONS.EVALUATION_COMMENTS, [Query.equal('evaluator_id', currentEmployee.$id)]),
-        fetchAllDocuments<Employee>(COLLECTIONS.EMPLOYEES, [Query.orderAsc('name')])
+        fetchAllDocuments<EvaluationComment>(COLLECTIONS.EVALUATION_COMMENTS, [Query.equal('evaluator_id', currentEmployee.$id)]),
+        fetchAllDocuments<Employee>(COLLECTIONS.EMPLOYEES, [Query.orderAsc('name')]),
+        fetchAllDocuments<Question>(COLLECTIONS.QUESTIONS),
       ]);
 
       const generatedTasks: Task[] = [];
@@ -85,13 +82,14 @@ export default function EvaluationsPage() {
         // Did I get assigned evaluators in this cycle? If so, I must do self-evaluation.
         const needsSelf = asEvaluated.some(a => a.cycle_id === cycle.$id);
         if (needsSelf) {
-          const hasResponses = myResponses.some(r => r.cycle_id === cycle.$id && r.evaluated_id === currentEmployee.$id);
+          const evaluationResponses = myResponses.filter(r =>
+            r.cycle_id === cycle.$id && r.evaluated_id === currentEmployee.$id
+          );
+          const hasResponses = hasAllRequiredResponses(evaluationResponses, allQuestions);
           const hasComment = myComments.some(c => 
             c.cycle_id === cycle.$id && 
             c.evaluated_id === currentEmployee.$id &&
-            (c.comment?.trim()?.length ?? 0) > 0 &&
-            (c.strengths?.trim()?.length ?? 0) > 0 &&
-            (c.opportunities?.trim()?.length ?? 0) > 0
+            hasRequiredComments(c)
           );
           const done = hasResponses && hasComment;
           generatedTasks.push({
@@ -108,13 +106,14 @@ export default function EvaluationsPage() {
         // Did I get assigned to evaluate peers in this cycle?
         const myPeerAssignments = asEvaluator.filter(a => a.cycle_id === cycle.$id && a.evaluated_id !== currentEmployee.$id);
         for (const a of myPeerAssignments) {
-          const hasResponses = myResponses.some(r => r.cycle_id === cycle.$id && r.evaluated_id === a.evaluated_id);
+          const evaluationResponses = myResponses.filter(r =>
+            r.cycle_id === cycle.$id && r.evaluated_id === a.evaluated_id
+          );
+          const hasResponses = hasAllRequiredResponses(evaluationResponses, allQuestions);
           const hasComment = myComments.some(c => 
             c.cycle_id === cycle.$id && 
             c.evaluated_id === a.evaluated_id &&
-            (c.comment?.trim()?.length ?? 0) > 0 &&
-            (c.strengths?.trim()?.length ?? 0) > 0 &&
-            (c.opportunities?.trim()?.length ?? 0) > 0
+            hasRequiredComments(c)
           );
           const done = hasResponses && hasComment;
           const targetEmployee = allEmps.find(e => e.$id === a.evaluated_id);
@@ -139,6 +138,13 @@ export default function EvaluationsPage() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    // Initial remote task load for the authenticated employee.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (currentEmployee) loadTasks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentEmployee]);
 
   const completedCount = tasks.filter(t => t.done).length;
   const totalCount = tasks.length;
