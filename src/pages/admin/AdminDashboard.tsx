@@ -72,6 +72,7 @@ export default function AdminDashboard() {
 
   // Results Tab state
   const [selectedResultCycleId, setSelectedResultCycleId] = useState<string>('');
+  const [resultsRefreshKey, setResultsRefreshKey] = useState(0);
   const [resultsStats, setResultsStats] = useState<EmployeeStats[]>([]);
   const [cycleData, setCycleData] = useState<{
     responses: Response[];
@@ -175,7 +176,7 @@ export default function AdminDashboard() {
       }
     }
     loadResults();
-  }, [selectedResultCycleId, allEmployees, allQuestions]);
+  }, [selectedResultCycleId, allEmployees, allQuestions, resultsRefreshKey]);
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     {
@@ -235,6 +236,7 @@ export default function AdminDashboard() {
                 onSelectCycle={setSelectedResultCycleId}
                 employees={resultsStats}
                 allEmployees={allEmployees}
+                onRefresh={() => setResultsRefreshKey((current) => current + 1)}
                 onViewReport={(cycleId, empId) => navigate(`/admin/reporte/${cycleId}/${empId}`)}
                 cycleData={cycleData}
                 allQuestions={allQuestions}
@@ -506,6 +508,9 @@ function CyclesTab({
 
 function CycleAssignments({ cycle, allEmployees, evaluatee }: { cycle: EvaluationCycle; allEmployees: Employee[]; evaluatee: Employee | null }) {
   const [assignments, setAssignments] = useState<EvaluationAssignment[]>([]);
+  const [cycleResponses, setCycleResponses] = useState<Response[]>([]);
+  const [cycleComments, setCycleComments] = useState<EvaluationComment[]>([]);
+  const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedEvaluatorIds, setSelectedEvaluatorIds] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
@@ -515,10 +520,28 @@ function CycleAssignments({ cycle, allEmployees, evaluatee }: { cycle: Evaluatio
   const loadAssignments = useCallback(async () => {
     setLoading(true);
     try {
-      const docs = await fetchAllDocuments<EvaluationAssignment>(COLLECTIONS.EVALUATION_ASSIGNMENTS, [
-        Query.equal('cycle_id', cycle.$id)
+      const [docs, allQuestions, responses, comments] = await Promise.all([
+        fetchAllDocuments<EvaluationAssignment>(COLLECTIONS.EVALUATION_ASSIGNMENTS, [
+          Query.equal('cycle_id', cycle.$id)
+        ]),
+        fetchAllDocuments<Question>(COLLECTIONS.QUESTIONS),
+        evaluatee
+          ? fetchAllDocuments<Response>(COLLECTIONS.RESPONSES, [
+              Query.equal('cycle_id', cycle.$id),
+              Query.equal('evaluated_id', evaluatee.$id),
+            ])
+          : Promise.resolve([]),
+        evaluatee
+          ? fetchAllDocuments<EvaluationComment>(COLLECTIONS.EVALUATION_COMMENTS, [
+              Query.equal('cycle_id', cycle.$id),
+              Query.equal('evaluated_id', evaluatee.$id),
+            ])
+          : Promise.resolve([]),
       ]);
       setAssignments(docs);
+      setQuestions(allQuestions);
+      setCycleResponses(responses);
+      setCycleComments(comments);
       if (evaluatee) {
         const current = docs.filter(a => a.evaluated_id === evaluatee.$id).map(a => a.evaluator_id);
         setSelectedEvaluatorIds(new Set(current));
@@ -633,11 +656,26 @@ function CycleAssignments({ cycle, allEmployees, evaluatee }: { cycle: Evaluatio
   });
 
   const currentFromDB = assignments.filter(a => a.evaluated_id === evaluatee.$id).map(a => a.evaluator_id);
+  const assignedEvaluatorIds = Array.from(new Set(currentFromDB));
+  const completedEvaluatorIds = new Set(
+    assignedEvaluatorIds.filter((evaluatorId) => hasCompletedEvaluation(
+      cycleResponses,
+      cycleComments,
+      questions,
+      evaluatorId,
+      evaluatee.$id,
+    ))
+  );
+  const totalAssigned = assignedEvaluatorIds.length;
+  const assignedPeerCount = assignedEvaluatorIds.filter((evaluatorId) => evaluatorId !== evaluatee.$id).length;
+  const completedCount = completedEvaluatorIds.size;
+  const pendingCount = totalAssigned - completedCount;
+  const progressPercent = totalAssigned > 0 ? Math.round((completedCount / totalAssigned) * 100) : 0;
+  const allComplete = totalAssigned > 0 && pendingCount === 0;
   const hasEvaluatorsSaved = currentFromDB.length > 0;
   const evaluatorsToAssign = Array.from(selectedEvaluatorIds);
   if (!evaluatorsToAssign.includes(evaluatee.$id)) evaluatorsToAssign.push(evaluatee.$id);
   const hasChanges = evaluatorsToAssign.length !== currentFromDB.length || evaluatorsToAssign.some(id => !currentFromDB.includes(id));
-  const peerCount = Array.from(selectedEvaluatorIds).filter(id => id !== evaluatee.$id).length;
 
   return (
     <div className="flex flex-col h-full bg-white">
@@ -653,9 +691,58 @@ function CycleAssignments({ cycle, allEmployees, evaluatee }: { cycle: Evaluatio
             <p className="text-xs text-surface-500">{evaluatee.department ?? 'Sin área'}</p>
           </div>
           <div className="ml-auto text-right">
-            <p className="text-2xl font-bold text-primary-600">{peerCount}</p>
-            <p className="text-[10px] text-surface-400 uppercase tracking-wide">evaluadores</p>
+            <p className={`text-2xl font-bold ${allComplete ? 'text-green-600' : 'text-primary-600'}`}>
+              {completedCount}/{totalAssigned}
+            </p>
+            <p className="text-[10px] text-surface-400 uppercase tracking-wide">completadas</p>
           </div>
+        </div>
+      </div>
+
+      {/* At-a-glance completion status */}
+      <div className={`px-6 py-3 border-b shrink-0 ${allComplete ? 'bg-green-50 border-green-200' : 'bg-white border-surface-100'}`}>
+        <div className="flex items-center justify-between gap-4 mb-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${allComplete ? 'bg-green-500 text-white' : 'bg-amber-100 text-amber-600'}`}>
+              {allComplete ? (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className={`text-sm font-bold ${allComplete ? 'text-green-800' : 'text-surface-800'}`}>
+                {totalAssigned === 0
+                  ? 'Sin evaluadores asignados'
+                  : allComplete
+                    ? 'Todos completaron'
+                    : `${pendingCount} ${pendingCount === 1 ? 'evaluación pendiente' : 'evaluaciones pendientes'}`}
+              </p>
+              <p className="text-[11px] text-surface-500">
+                {totalAssigned === 0
+                  ? 'Selecciona evaluadores y guarda las asignaciones'
+                  : `${completedCount} de ${totalAssigned} tareas completas · ${assignedPeerCount} evaluadores + autoevaluación`}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className={`text-sm font-bold ${allComplete ? 'text-green-700' : 'text-primary-600'}`}>{progressPercent}%</span>
+            <button
+              type="button"
+              onClick={() => loadAssignments()}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-surface-200 bg-white text-[10px] font-semibold text-surface-600 hover:border-primary-300 hover:text-primary-600 transition-colors"
+              title="Consultar el progreso más reciente"
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.25}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+              Actualizar
+            </button>
+          </div>
+        </div>
+        <div className="h-2 bg-surface-200 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${allComplete ? 'bg-green-500' : 'bg-primary-500'}`}
+            style={{ width: `${progressPercent}%` }}
+          />
         </div>
       </div>
 
@@ -686,10 +773,16 @@ function CycleAssignments({ cycle, allEmployees, evaluatee }: { cycle: Evaluatio
         ) : (
           <button
             onClick={() => sendNotifications()}
-            disabled={saving || !hasEvaluatorsSaved}
-            className="flex-1 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm bg-primary-500 text-white hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed"
+            disabled={saving || !hasEvaluatorsSaved || allComplete}
+            className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm disabled:cursor-not-allowed ${allComplete ? 'bg-green-100 text-green-700 shadow-none' : 'bg-primary-500 text-white hover:bg-primary-600 disabled:opacity-40'}`}
           >
-            {saving ? 'Enviando...' : 'Recordar solo a pendientes'}
+            {saving
+              ? 'Enviando...'
+              : allComplete
+                ? 'Todos completaron'
+                : totalAssigned === 0
+                  ? 'Sin asignaciones'
+                  : `Recordar a ${pendingCount} pendientes`}
           </button>
         )}
       </div>
@@ -714,16 +807,26 @@ function CycleAssignments({ cycle, allEmployees, evaluatee }: { cycle: Evaluatio
         <div className="overflow-y-auto flex-1 p-3 space-y-1">
           {filteredCandidates.map(emp => {
             const isChecked = selectedEvaluatorIds.has(emp.$id);
+            const isSavedAssignment = assignedEvaluatorIds.includes(emp.$id);
+            const hasCompleted = completedEvaluatorIds.has(emp.$id);
             return (
               <label key={emp.$id} className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-200 border ${isChecked ? 'bg-primary-50/30 border-primary-200' : 'bg-transparent border-transparent hover:bg-surface-50 hover:border-surface-200'}`}>
                 <input type="checkbox" className="hidden" checked={isChecked} onChange={() => toggleEvaluator(emp.$id)} />
                 <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${isChecked ? 'bg-primary-500 border-primary-500' : 'bg-white border-surface-300'}`}>
                   {isChecked && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                 </div>
-                <div>
+                <div className="min-w-0">
                   <span className={`text-sm block ${isChecked ? 'font-medium text-surface-800' : 'text-surface-600'}`}>{emp.name}</span>
                   <span className="text-[10px] text-surface-400 uppercase tracking-wide">{emp.department ?? 'Sin área'}</span>
                 </div>
+                {isSavedAssignment && (
+                  <span className={`ml-auto inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide shrink-0 ${
+                    hasCompleted ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${hasCompleted ? 'bg-green-500' : 'bg-amber-500'}`} />
+                    {hasCompleted ? 'Completado' : 'Pendiente'}
+                  </span>
+                )}
               </label>
             );
           })}
@@ -744,6 +847,7 @@ function ResultsTab({
   onSelectCycle,
   employees,
   allEmployees,
+  onRefresh,
   onViewReport,
   cycleData,
   allQuestions,
@@ -753,6 +857,7 @@ function ResultsTab({
   onSelectCycle: (id: string) => void;
   employees: EmployeeStats[];
   allEmployees: Employee[];
+  onRefresh: () => void;
   onViewReport: (cycleId: string, empId: string) => void;
   cycleData: { responses: Response[]; assignments: EvaluationAssignment[]; comments: EvaluationComment[] } | null;
   allQuestions: Question[];
@@ -917,11 +1022,13 @@ function ResultsTab({
   const completedEvaluatorsCount = completedEvaluatorIds.size;
   const totalEvaluators = assignments.length;
   const pendingCount = totalEvaluators - completedEvaluatorsCount;
+  const progressPercent = totalEvaluators > 0 ? Math.round((completedEvaluatorsCount / totalEvaluators) * 100) : 0;
+  const allComplete = totalEvaluators > 0 && pendingCount === 0;
 
   return (
     <div>
       {/* Dropdown to select cycle */}
-      <div className="mb-6 flex items-center gap-4 bg-white p-4 rounded-2xl border border-surface-200">
+      <div className="mb-6 flex flex-wrap items-center gap-4 bg-white p-4 rounded-2xl border border-surface-200">
         <label className="text-sm font-semibold text-surface-700">Viendo resultados del ciclo:</label>
         <select 
           value={selectedCycleId} 
@@ -931,6 +1038,14 @@ function ResultsTab({
           {cycles.map(c => <option key={c.$id} value={c.$id}>{c.name} ({c.status})</option>)}
         </select>
         {selectedCycle && <StatusBadge status={selectedCycle.status} />}
+        <button
+          type="button"
+          onClick={onRefresh}
+          className="ml-auto inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-surface-200 bg-white text-xs font-semibold text-surface-600 hover:border-primary-300 hover:text-primary-600 transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.25}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+          Actualizar progreso
+        </button>
       </div>
 
       {!cycleData ? (
@@ -960,6 +1075,36 @@ function ResultsTab({
         </div>
       ) : (
         <>
+          {/* Prominent cycle completion status */}
+          <div className={`mb-5 rounded-2xl border px-5 py-4 flex flex-col md:flex-row md:items-center gap-4 ${
+            allComplete ? 'bg-green-50 border-green-200' : 'bg-white border-surface-200'
+          }`}>
+            <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${
+              allComplete ? 'bg-green-500 text-white' : 'bg-amber-100 text-amber-600'
+            }`}>
+              {allComplete ? (
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+              ) : (
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              )}
+            </div>
+            <div className="min-w-0 md:w-72">
+              <p className={`font-bold ${allComplete ? 'text-green-800' : 'text-surface-800'}`}>
+                {allComplete ? 'Todas las evaluaciones están completas' : `${pendingCount} ${pendingCount === 1 ? 'evaluación pendiente' : 'evaluaciones pendientes'}`}
+              </p>
+              <p className="text-xs text-surface-500 mt-0.5">{completedEvaluatorsCount} de {totalEvaluators} completadas</p>
+            </div>
+            <div className="flex-1 flex items-center gap-3">
+              <div className="flex-1 h-2.5 bg-surface-200 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${allComplete ? 'bg-green-500' : 'bg-primary-500'}`}
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+              <span className={`text-lg font-bold w-12 text-right ${allComplete ? 'text-green-700' : 'text-primary-600'}`}>{progressPercent}%</span>
+            </div>
+          </div>
+
           {/* Stats row & Actions */}
           <div className="flex flex-col md:flex-row gap-6 mb-6">
             <div className="flex-1 grid grid-cols-3 gap-4">
