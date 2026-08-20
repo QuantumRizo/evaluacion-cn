@@ -40,12 +40,18 @@ async function createAttribute(collectionId, attr) {
 }
 
 async function main() {
-  console.log('🚀 Agregando campos strengths y opportunities...');
-  const collectionId = 'evaluation_comments';
+  console.log('🚀 Agregando campos strengths y opportunities a final_reports y evaluation_comments...');
   
-  await createAttribute(collectionId, { key: 'strengths', type: 'string', size: 5000, required: false });
+  // evaluation_comments
+  await createAttribute('evaluation_comments', { key: 'strengths', type: 'string', size: 5000, required: false });
   await sleep(1000);
-  await createAttribute(collectionId, { key: 'opportunities', type: 'string', size: 5000, required: false });
+  await createAttribute('evaluation_comments', { key: 'opportunities', type: 'string', size: 5000, required: false });
+  await sleep(1000);
+
+  // final_reports
+  await createAttribute('final_reports', { key: 'strengths', type: 'string', size: 5000, required: false });
+  await sleep(1000);
+  await createAttribute('final_reports', { key: 'opportunities', type: 'string', size: 5000, required: false });
   
   console.log('✅ Listo.');
 }

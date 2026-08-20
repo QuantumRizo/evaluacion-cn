@@ -116,6 +116,8 @@ const COLLECTIONS = [
       { key: 'self_score',      type: 'float',   required: false, min: 0, max: 1 },
       { key: 'collective_score',type: 'float',   required: false, min: 0, max: 1 },
       { key: 'admin_summary',   type: 'string',  size: 5000, required: false },
+      { key: 'strengths',       type: 'string',  size: 5000, required: false },
+      { key: 'opportunities',   type: 'string',  size: 5000, required: false },
       { key: 'final_score',     type: 'float',   required: false, min: 0, max: 1 },
       { key: 'is_exported',     type: 'boolean', required: false, default: false },
     ],

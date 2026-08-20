@@ -26,8 +26,39 @@ export default function AdminReportPage() {
   const [comments, setComments] = useState<EvaluationComment[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
 
+  const [adminStrengths, setAdminStrengths] = useState('');
+  const [adminOpportunities, setAdminOpportunities] = useState('');
   const [adminSummary, setAdminSummary] = useState('');
   const [finalScore, setFinalScore] = useState<number | ''>('');
+
+  // Expand / collapse categories state
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    CATEGORY_ORDER.forEach((cat) => {
+      initial[cat] = true; // expanded by default
+    });
+    return initial;
+  });
+
+  const toggleCategory = (cat: string) => {
+    setExpandedCategories((prev) => ({ ...prev, [cat]: !prev[cat] }));
+  };
+
+  const expandAll = () => {
+    const next: Record<string, boolean> = {};
+    CATEGORY_ORDER.forEach((cat) => {
+      next[cat] = true;
+    });
+    setExpandedCategories(next);
+  };
+
+  const collapseAll = () => {
+    const next: Record<string, boolean> = {};
+    CATEGORY_ORDER.forEach((cat) => {
+      next[cat] = false;
+    });
+    setExpandedCategories(next);
+  };
 
   // Computed scores
   const completedEvaluatorIds = new Set(
@@ -120,7 +151,9 @@ export default function AdminReportPage() {
         const r = reportResult.documents[0] as unknown as FinalReport;
         setReport(r);
         setAdminSummary(r.admin_summary ?? '');
-        setFinalScore(r.final_score ?? '');
+        setAdminStrengths(r.strengths ?? '');
+        setAdminOpportunities(r.opportunities ?? '');
+        setFinalScore(r.final_score !== undefined && r.final_score !== null ? r.final_score : '');
       }
     } catch (err) {
       console.error(err);
@@ -147,6 +180,8 @@ export default function AdminReportPage() {
         self_score: selfScore ?? undefined,
         collective_score: collectiveScore ?? undefined,
         admin_summary: adminSummary,
+        strengths: adminStrengths,
+        opportunities: adminOpportunities,
         final_score: finalScore !== '' ? Number(finalScore) : undefined,
         is_exported: false,
       };
@@ -192,8 +227,10 @@ export default function AdminReportPage() {
       'Top 3 Oportunidad',
       ...categoryHeaders,
       'Comentario General',
-      'Fortalezas',
-      'Oportunidades',
+      'Fortalezas Evaluador',
+      'Oportunidades Evaluador',
+      'Fortalezas Admin',
+      'Oportunidades Admin',
       'Síntesis Administrativa',
       'Calificación Final'
     ];
@@ -261,6 +298,8 @@ export default function AdminReportPage() {
       row.push(evComment && evComment.strengths ? `"${evComment.strengths.replace(/"/g, '""').replace(/\n/g, ' ')}"` : '""');
       row.push(evComment && evComment.opportunities ? `"${evComment.opportunities.replace(/"/g, '""').replace(/\n/g, ' ')}"` : '""');
       
+      row.push(`"${adminStrengths.replace(/"/g, '""').replace(/\n/g, ' ')}"`);
+      row.push(`"${adminOpportunities.replace(/"/g, '""').replace(/\n/g, ' ')}"`);
       row.push(`"${adminSummary.replace(/"/g, '""').replace(/\n/g, ' ')}"`);
       row.push(`"${finalScore !== '' ? Math.round(Number(finalScore) * 100) + '%' : 'Pendiente'}"`);
 
@@ -305,9 +344,9 @@ export default function AdminReportPage() {
           </div>
           <button
             onClick={exportToCSV}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-surface-200 bg-white hover:border-surface-300 text-surface-700 text-sm font-medium transition-all"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-surface-200 bg-white hover:border-surface-300 text-surface-700 text-sm font-medium transition-all shadow-sm"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
             Exportar Excel
@@ -363,78 +402,153 @@ export default function AdminReportPage() {
             />
           </div>
 
-          {/* Category breakdown */}
-          <div className="bg-white rounded-2xl border border-surface-200 overflow-hidden mb-8">
-            <div className="px-6 py-4 border-b border-surface-100">
-              <h2 className="text-sm font-semibold text-surface-800">
-                Resultados por Categoría
-              </h2>
+          {/* Category breakdown with question drilldown */}
+          <div className="bg-white rounded-2xl border border-surface-200 overflow-hidden mb-8 shadow-sm">
+            <div className="px-6 py-4 border-b border-surface-100 flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-surface-800">
+                  Resultados por Categoría y Reactivo
+                </h2>
+                <p className="text-xs text-surface-400 mt-0.5">
+                  Haz clic en cualquier categoría para ver el desglose de preguntas individuales comparando Autoevaluación vs. Colectiva.
+                </p>
+              </div>
+              <div className="print:hidden flex items-center gap-2">
+                <button
+                  onClick={expandAll}
+                  className="text-xs font-medium text-primary-600 hover:text-primary-700 px-2 py-1 rounded hover:bg-primary-50 transition-colors"
+                >
+                  Expandir todas
+                </button>
+                <span className="text-surface-300">|</span>
+                <button
+                  onClick={collapseAll}
+                  className="text-xs font-medium text-surface-500 hover:text-surface-700 px-2 py-1 rounded hover:bg-surface-100 transition-colors"
+                >
+                  Colapsar todas
+                </button>
+              </div>
             </div>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-surface-50">
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-surface-400 uppercase tracking-wider">Categoría</th>
-                  <th className="px-6 py-3 text-center text-xs font-semibold text-surface-400 uppercase tracking-wider">Preguntas</th>
-                  <th className="px-6 py-3 text-center text-xs font-semibold text-surface-400 uppercase tracking-wider">Autoevaluación</th>
-                  <th className="px-6 py-3 text-center text-xs font-semibold text-surface-400 uppercase tracking-wider">Colectiva</th>
-                  <th className="px-6 py-3 text-center text-xs font-semibold text-surface-400 uppercase tracking-wider">Diferencia</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-surface-50">
-                {categoryScores.map((cs) => {
-                  const diff =
-                    cs.selfScore !== null && cs.collectiveScore !== null
-                      ? cs.collectiveScore - cs.selfScore
-                      : null;
-                  return (
-                    <tr key={cs.category} className="hover:bg-surface-50/30">
-                      <td className="px-6 py-3.5 font-medium text-surface-700">
-                        {CATEGORY_LABELS[cs.category]}
-                      </td>
-                      <td className="px-6 py-3.5 text-center text-surface-500">
-                        {cs.questionCount}
-                      </td>
-                      <td className="px-6 py-3.5 text-center">
-                        {cs.selfScore !== null
-                          ? <span className="font-semibold text-primary-600">{pct(cs.selfScore)}</span>
-                          : <span className="text-surface-300">—</span>}
-                      </td>
-                      <td className="px-6 py-3.5 text-center">
-                        {cs.collectiveScore !== null
-                          ? <span className="font-semibold text-green-600">{pct(cs.collectiveScore)}</span>
-                          : <span className="text-surface-300">—</span>}
-                      </td>
-                      <td className="px-6 py-3.5 text-center">
-                        {diff !== null ? (
-                          <span className={`text-xs font-medium ${diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-500' : 'text-surface-400'}`}>
-                            {diff > 0 ? '+' : ''}{pct(diff)}
-                          </span>
-                        ) : <span className="text-surface-300">—</span>}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-surface-100 bg-surface-50/50">
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-surface-500 uppercase tracking-wider">
+                      Categoría / Reactivo
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-surface-500 uppercase tracking-wider w-24">
+                      Preguntas
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-surface-500 uppercase tracking-wider w-28">
+                      Autoevaluación
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-surface-500 uppercase tracking-wider w-28">
+                      Colectiva
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-surface-500 uppercase tracking-wider w-28">
+                      Diferencia
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-100">
+                  {categoryScores.map((cs) => {
+                    const diff =
+                      cs.selfScore !== null && cs.collectiveScore !== null
+                        ? cs.collectiveScore - cs.selfScore
+                        : null;
+                    const isExpanded = !!expandedCategories[cs.category];
+                    const catQuestions = questions.filter((q) => q.category === cs.category);
+
+                    return (
+                      <CategoryBlock
+                        key={cs.category}
+                        categoryScore={cs}
+                        categoryQuestions={catQuestions}
+                        selfResponses={selfResponses}
+                        peerResponses={peerResponses}
+                        isExpanded={isExpanded}
+                        onToggle={() => toggleCategory(cs.category)}
+                        diff={diff}
+                      />
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
 
-          {/* Admin summary */}
-          <div className="bg-white rounded-2xl border border-surface-200 p-6 mb-8">
-            <h2 className="text-sm font-semibold text-surface-800 mb-4">
-              Síntesis Administrativa
-            </h2>
+          {/* Admin Dictamen & Retroalimentación Section (Strengths, Opportunities, Summary, Final Score) */}
+          <div className="bg-white rounded-2xl border border-surface-200 p-6 mb-8 shadow-sm">
+            <div className="border-b border-surface-100 pb-4 mb-6">
+              <h2 className="text-base font-bold text-surface-800">
+                Dictamen y Retroalimentación Administrativa
+              </h2>
+              <p className="text-xs text-surface-400 mt-1">
+                Estructura el reporte final del colaborador separando fortalezas, oportunidades detectadas en los reactivos y la síntesis administrativa.
+              </p>
+            </div>
 
-            {/* Screen: editable */}
-            <div className="print:hidden">
-              <textarea
-                value={adminSummary}
-                onChange={(e) => setAdminSummary(e.target.value)}
-                placeholder="Redacta aquí el análisis consolidado del colaborador. Este texto, junto con la calificación final, será el contenido del reporte exportado."
-                rows={6}
-                className="w-full px-4 py-3 rounded-xl border border-surface-200 bg-surface-50 text-sm text-surface-700 placeholder:text-surface-300 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 resize-none leading-relaxed"
-              />
+            {/* Screen: editable form */}
+            <div className="print:hidden space-y-6">
+              {/* Fortalezas */}
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold">
+                    ✓
+                  </div>
+                  <label className="text-sm font-semibold text-surface-800">
+                    Fortalezas y Competencias Destacadas
+                  </label>
+                </div>
+                <textarea
+                  value={adminStrengths}
+                  onChange={(e) => setAdminStrengths(e.target.value)}
+                  placeholder="Describe las principales fortalezas, habilidades destacadas y logros del colaborador durante este ciclo..."
+                  rows={4}
+                  className="w-full px-4 py-3 rounded-xl border border-surface-200 bg-surface-50 text-sm text-surface-700 placeholder:text-surface-300 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 resize-none leading-relaxed"
+                />
+              </div>
 
-              <div className="mt-4 flex items-center justify-between">
+              {/* Oportunidades */}
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-6 h-6 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-bold">
+                    ▲
+                  </div>
+                  <label className="text-sm font-semibold text-surface-800">
+                    Áreas de Oportunidad y Mejora
+                  </label>
+                </div>
+                <textarea
+                  value={adminOpportunities}
+                  onChange={(e) => setAdminOpportunities(e.target.value)}
+                  placeholder="Detalla las áreas prioritarias de desarrollo identificadas a partir de las calificaciones más bajas y conductas observadas..."
+                  rows={4}
+                  className="w-full px-4 py-3 rounded-xl border border-surface-200 bg-surface-50 text-sm text-surface-700 placeholder:text-surface-300 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 resize-none leading-relaxed"
+                />
+              </div>
+
+              {/* Síntesis Administrativa */}
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-6 h-6 rounded-lg bg-primary-100 text-primary-700 flex items-center justify-center text-xs font-bold">
+                    ℹ
+                  </div>
+                  <label className="text-sm font-semibold text-surface-800">
+                    Síntesis Administrativa / Conclusión
+                  </label>
+                </div>
+                <textarea
+                  value={adminSummary}
+                  onChange={(e) => setAdminSummary(e.target.value)}
+                  placeholder="Redacta el análisis consolidado, conclusión ejecutiva y acuerdos de seguimiento con el colaborador..."
+                  rows={4}
+                  className="w-full px-4 py-3 rounded-xl border border-surface-200 bg-surface-50 text-sm text-surface-700 placeholder:text-surface-300 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 resize-none leading-relaxed"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-surface-100 flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <label className="text-xs font-medium text-surface-600">
                     Calificación final (0.00 – 1.00):
@@ -446,9 +560,14 @@ export default function AdminReportPage() {
                     step={0.01}
                     value={finalScore}
                     onChange={(e) => setFinalScore(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-24 px-3 py-1.5 rounded-lg border border-surface-200 bg-surface-50 text-sm text-surface-800 text-center focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400"
+                    className="w-24 px-3 py-1.5 rounded-lg border border-surface-200 bg-surface-50 text-sm text-surface-800 text-center font-bold focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400"
                     placeholder="0.00"
                   />
+                  {finalScore !== '' && (
+                    <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-violet-50 text-violet-700 border border-violet-200">
+                      {pct(Number(finalScore))}
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -463,7 +582,7 @@ export default function AdminReportPage() {
                   <button
                     onClick={saveReport}
                     disabled={saving}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary-500 hover:bg-primary-600 disabled:bg-primary-300 text-white text-sm font-medium transition-colors"
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary-500 hover:bg-primary-600 disabled:bg-primary-300 text-white text-sm font-medium transition-colors shadow-sm"
                   >
                     {saving ? (
                       <><div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Guardando...</>
@@ -474,14 +593,42 @@ export default function AdminReportPage() {
             </div>
 
             {/* Print: static text */}
-            <div className="hidden print:block">
-              <p className="text-sm text-surface-700 leading-relaxed whitespace-pre-wrap">
-                {adminSummary || 'Sin síntesis administrativa.'}
-              </p>
+            <div className="hidden print:block space-y-6">
+              {adminStrengths && (
+                <div className="p-4 rounded-xl bg-emerald-50/50 border border-emerald-100">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-800 mb-2">
+                    Fortalezas y Competencias Destacadas
+                  </h3>
+                  <p className="text-sm text-surface-800 leading-relaxed whitespace-pre-wrap">
+                    {adminStrengths}
+                  </p>
+                </div>
+              )}
+
+              {adminOpportunities && (
+                <div className="p-4 rounded-xl bg-amber-50/50 border border-amber-100">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-amber-800 mb-2">
+                    Áreas de Oportunidad y Mejora
+                  </h3>
+                  <p className="text-sm text-surface-800 leading-relaxed whitespace-pre-wrap">
+                    {adminOpportunities}
+                  </p>
+                </div>
+              )}
+
+              <div className="p-4 rounded-xl bg-surface-50 border border-surface-100">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-surface-700 mb-2">
+                  Síntesis Administrativa / Conclusión
+                </h3>
+                <p className="text-sm text-surface-800 leading-relaxed whitespace-pre-wrap">
+                  {adminSummary || 'Sin síntesis administrativa.'}
+                </p>
+              </div>
+
               {finalScore !== '' && (
-                <div className="mt-6 pt-6 border-t border-surface-200">
-                  <p className="text-xs text-surface-500 mb-1">Calificación Final</p>
-                  <p className="text-3xl font-bold text-surface-900">{pct(Number(finalScore))}</p>
+                <div className="mt-4 pt-4 border-t border-surface-200 flex items-center justify-between">
+                  <p className="text-sm font-bold text-surface-700">Calificación Final Asignada</p>
+                  <p className="text-2xl font-bold text-violet-700">{pct(Number(finalScore))}</p>
                 </div>
               )}
             </div>
@@ -489,7 +636,7 @@ export default function AdminReportPage() {
 
           {/* Full Responses and Comments Section */}
           <div className="mt-12 pt-8 border-t border-surface-200">
-            <h2 className="text-xl font-bold text-surface-800 mb-6">Detalle de Respuestas y Comentarios</h2>
+            <h2 className="text-xl font-bold text-surface-800 mb-6">Detalle de Evaluadores y Comentarios</h2>
             {employees.length > 0 && Array.from(new Set(responses.map(r => r.evaluator_id))).map(evaluatorId => {
               const evaluator = employees.find(e => e.$id === evaluatorId);
               if (!evaluator) return null;
@@ -499,7 +646,7 @@ export default function AdminReportPage() {
               const evComment = comments.find(c => c.evaluator_id === evaluatorId);
 
               return (
-                <div key={evaluatorId} className="bg-white rounded-2xl border border-surface-200 p-6 mb-6" style={{ pageBreakInside: 'avoid' }}>
+                <div key={evaluatorId} className="bg-white rounded-2xl border border-surface-200 p-6 mb-6 shadow-sm" style={{ pageBreakInside: 'avoid' }}>
                   <div className="flex items-center gap-3 mb-4 pb-4 border-b border-surface-100">
                     <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center shrink-0">
                       <span className="text-sm font-bold text-primary-700">{evaluator.name.charAt(0).toUpperCase()}</span>
@@ -537,8 +684,8 @@ export default function AdminReportPage() {
                   )}
 
                   <div>
-                    <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-3">Respuestas (0% a 100%)</p>
-                    <div className="space-y-3">
+                    <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-3">Respuestas del Evaluador (0% a 100%)</p>
+                    <div className="space-y-2">
                       {questions.map((q, idx) => {
                         const resp = evResponses.find(r => r.question_id === q.$id);
                         if (!resp) return null;
@@ -547,10 +694,12 @@ export default function AdminReportPage() {
                                       scorePct >= 50 ? 'text-amber-700 bg-amber-50 border-amber-200' :
                                       'text-red-700 bg-red-50 border-red-200';
                         return (
-                          <div key={q.$id} className="flex gap-4 items-start py-2 border-b border-surface-50 last:border-0">
-                            <span className="text-surface-300 font-medium text-sm w-4 shrink-0">{idx + 1}.</span>
-                            <p className="text-sm text-surface-700 flex-1 leading-relaxed">{q.text}</p>
-                            <span className={`inline-block px-2 py-1 rounded-md text-xs font-bold border shrink-0 ${color}`}>
+                          <div key={q.$id} className="flex gap-4 items-center justify-between py-1.5 px-3 rounded-lg hover:bg-surface-50/50 border border-transparent hover:border-surface-100 transition-colors">
+                            <div className="flex items-start gap-2.5 flex-1 min-w-0 pr-4">
+                              <span className="text-surface-400 font-medium text-xs w-5 shrink-0 mt-0.5">{idx + 1}.</span>
+                              <p className="text-xs text-surface-700 leading-relaxed">{q.text}</p>
+                            </div>
+                            <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold border shrink-0 ${color}`}>
                               {scorePct}%
                             </span>
                           </div>
@@ -584,6 +733,177 @@ export default function AdminReportPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+function CategoryBlock({
+  categoryScore,
+  categoryQuestions,
+  selfResponses,
+  peerResponses,
+  isExpanded,
+  onToggle,
+  diff,
+}: {
+  categoryScore: CategoryScore;
+  categoryQuestions: Question[];
+  selfResponses: Response[];
+  peerResponses: Response[];
+  isExpanded: boolean;
+  onToggle: () => void;
+  diff: number | null;
+}) {
+  return (
+    <>
+      {/* Category header row */}
+      <tr 
+        onClick={onToggle}
+        className="cursor-pointer hover:bg-surface-50/70 transition-colors bg-white font-medium select-none"
+      >
+        <td className="px-6 py-3.5 text-surface-800">
+          <div className="flex items-center gap-2.5">
+            <span className={`text-surface-400 transition-transform duration-200 print:hidden ${isExpanded ? 'rotate-90' : ''}`}>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+            </span>
+            <span className="font-semibold text-surface-900">
+              {CATEGORY_LABELS[categoryScore.category]}
+            </span>
+          </div>
+        </td>
+        <td className="px-4 py-3.5 text-center text-surface-500 text-xs font-semibold">
+          <span className="inline-block px-2 py-0.5 bg-surface-100 text-surface-600 rounded-full">
+            {categoryScore.questionCount}
+          </span>
+        </td>
+        <td className="px-4 py-3.5 text-center">
+          {categoryScore.selfScore !== null ? (
+            <span className="font-bold text-primary-600">{pct(categoryScore.selfScore)}</span>
+          ) : (
+            <span className="text-surface-300">—</span>
+          )}
+        </td>
+        <td className="px-4 py-3.5 text-center">
+          {categoryScore.collectiveScore !== null ? (
+            <span className="font-bold text-green-600">{pct(categoryScore.collectiveScore)}</span>
+          ) : (
+            <span className="text-surface-300">—</span>
+          )}
+        </td>
+        <td className="px-4 py-3.5 text-center">
+          {diff !== null ? (
+            <span
+              className={`text-xs font-bold px-2 py-0.5 rounded-md ${
+                diff > 0
+                  ? 'text-green-700 bg-green-50'
+                  : diff < 0
+                  ? 'text-red-700 bg-red-50'
+                  : 'text-surface-500 bg-surface-100'
+              }`}
+            >
+              {diff > 0 ? '+' : ''}
+              {pct(diff)}
+            </span>
+          ) : (
+            <span className="text-surface-300">—</span>
+          )}
+        </td>
+      </tr>
+
+      {/* Sub-rows for questions in this category */}
+      <tr className={isExpanded ? 'bg-surface-50/40' : 'hidden print:table-row bg-surface-50/40'}>
+        <td colSpan={5} className="p-0 border-b border-surface-100">
+            <div className="divide-y divide-surface-100/60 bg-surface-50/30">
+              {categoryQuestions.map((q) => {
+                const selfR = selfResponses.find((r) => r.question_id === q.$id);
+                const selfQScore = selfR ? selfR.score : null;
+
+                const peerRs = peerResponses.filter((r) => r.question_id === q.$id);
+                const peerQScore =
+                  peerRs.length > 0
+                    ? peerRs.reduce((acc, r) => acc + r.score, 0) / peerRs.length
+                    : null;
+
+                const qDiff =
+                  selfQScore !== null && peerQScore !== null
+                    ? peerQScore - selfQScore
+                    : null;
+
+                const isLowScore =
+                  (peerQScore !== null && peerQScore < 0.70) ||
+                  (selfQScore !== null && selfQScore < 0.70);
+
+                return (
+                  <div
+                    key={q.$id}
+                    className="grid grid-cols-12 items-center py-2.5 px-6 hover:bg-surface-100/50 transition-colors text-xs"
+                  >
+                    <div className="col-span-6 flex items-start gap-2.5 pr-4">
+                      <span className="text-surface-400 font-mono text-[11px] shrink-0 mt-0.5">
+                        #{q.order}
+                      </span>
+                      <div>
+                        <p className="text-surface-700 font-normal leading-relaxed">
+                          {q.text}
+                        </p>
+                        {isLowScore && (
+                          <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded">
+                            Oportunidad de mejora
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="col-span-1 text-center text-surface-300 font-mono text-[11px]">
+                      —
+                    </div>
+                    <div className="col-span-2 text-center font-medium">
+                      {selfQScore !== null ? (
+                        <span className={`inline-block px-2 py-0.5 rounded ${
+                          selfQScore >= 0.75 ? 'text-primary-700 font-bold' : selfQScore >= 0.5 ? 'text-amber-700 font-semibold' : 'text-red-600 font-bold'
+                        }`}>
+                          {pct(selfQScore)}
+                        </span>
+                      ) : (
+                        <span className="text-surface-300">—</span>
+                      )}
+                    </div>
+                    <div className="col-span-2 text-center font-medium">
+                      {peerQScore !== null ? (
+                        <span className={`inline-block px-2 py-0.5 rounded ${
+                          peerQScore >= 0.75 ? 'text-emerald-700 font-bold' : peerQScore >= 0.5 ? 'text-amber-700 font-semibold' : 'text-red-600 font-bold'
+                        }`}>
+                          {pct(peerQScore)}
+                        </span>
+                      ) : (
+                        <span className="text-surface-300">—</span>
+                      )}
+                    </div>
+                    <div className="col-span-1 text-center">
+                      {qDiff !== null ? (
+                        <span
+                          className={`text-[11px] font-medium ${
+                            qDiff > 0
+                              ? 'text-emerald-600'
+                              : qDiff < 0
+                              ? 'text-red-500'
+                              : 'text-surface-400'
+                          }`}
+                        >
+                          {qDiff > 0 ? '+' : ''}
+                          {pct(qDiff)}
+                        </span>
+                      ) : (
+                        <span className="text-surface-300">—</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </td>
+        </tr>
+    </>
   );
 }
 

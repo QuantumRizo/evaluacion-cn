@@ -69,6 +69,8 @@ export interface FinalReport {
   self_score?: number;
   collective_score?: number;
   admin_summary?: string;
+  strengths?: string;
+  opportunities?: string;
   final_score?: number;
   is_exported: boolean;
 }
