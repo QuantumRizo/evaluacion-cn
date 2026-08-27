@@ -1,5 +1,13 @@
 # React + TypeScript + Vite
 
+## Supabase
+
+1. Ejecuta [`supabase/schema.sql`](./supabase/schema.sql) en el SQL Editor del proyecto destino.
+2. Copia `.env.example` a `.env.local` y configura `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` (la clave publishable, nunca la `service_role`).
+3. Crea los usuarios en Supabase Auth y asigna su UUID en `employees.auth_user_id`.
+
+La aplicación ya usa Supabase Auth y PostgREST mediante una fachada de compatibilidad. La migración de datos desde Appwrite requiere credenciales administrativas del proyecto Appwrite de origen y aún no se ejecuta.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

@@ -7,13 +7,12 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { Models } from 'appwrite';
-import { account, databases, Query } from '../lib/appwrite';
+import { account, databases, Query, type AppUser } from '../lib/appwrite';
 import { DB_ID, COLLECTIONS } from '../lib/constants';
 import type { Employee } from '../types';
 
 interface AuthContextType {
-  user: Models.User<Models.Preferences> | null;
+  user: AppUser | null;
   employee: Employee | null;
   isLoading: boolean;
   isAdmin: boolean;
@@ -26,7 +25,7 @@ type AuthStatus = 'authenticated' | 'inactive' | 'missing-profile' | 'unauthenti
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<Models.User<Models.Preferences> | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
