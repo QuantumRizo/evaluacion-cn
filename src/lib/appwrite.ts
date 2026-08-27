@@ -38,11 +38,12 @@ interface QueryBuilder {
   gt: (field: string, value: unknown) => QueryBuilder;
 }
 interface ListResult { data: Record<string, unknown>[] | null; error: Error | null; count: number | null }
+const mapField = (field: string) => ({ '$id': 'id', '$createdAt': 'created_at', '$updatedAt': 'updated_at' }[field] ?? field);
 function applyQueries(query: QueryBuilder, queries: QuerySpec[] = []): QueryBuilder {
   let result = query;
   for (const item of queries) {
-    if (item.kind === 'eq') result = result.eq(item.field!, item.value);
-    if (item.kind === 'order') result = result.order(item.field!, { ascending: item.ascending! });
+    if (item.kind === 'eq') result = result.eq(mapField(item.field!), item.value);
+    if (item.kind === 'order') result = result.order(mapField(item.field!), { ascending: item.ascending! });
     if (item.kind === 'limit') result = result.limit(item.value as number);
     if (item.kind === 'cursor') result = result.gt('id', item.value);
   }
