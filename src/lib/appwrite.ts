@@ -8,6 +8,8 @@ export const account = {
   get: async (): Promise<AppUser> => { const { data, error } = await supabase.auth.getUser(); if (error || !data.user) throw error ?? new Error('No active session'); return Object.assign(data.user, { $id: data.user.id }); },
   createEmailPasswordSession: async (email: string, password: string) => { const { error } = await supabase.auth.signInWithPassword({ email, password }); if (error) throw error; },
   deleteSession: async (...args: unknown[]) => { void args; const { error } = await supabase.auth.signOut(); if (error) throw error; },
+  resetPassword: async (email: string, redirectTo: string) => { const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo }); if (error) throw error; },
+  updatePassword: async (password: string) => { const { error } = await supabase.auth.updateUser({ password }); if (error) throw error; },
 };
 
 type QuerySpec = { kind: 'eq' | 'order' | 'limit' | 'cursor'; field?: string; value?: unknown; ascending?: boolean };

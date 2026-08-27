@@ -627,7 +627,7 @@ function CycleAssignments({ cycle, allEmployees, evaluatee }: { cycle: Evaluatio
         evaluated_id: evaluatee.$id,
         evaluator_ids: pendingEvaluatorIds,
       });
-      await functions.createExecution('send_assignment_email', payload, false, '/', ExecutionMethod.POST);
+      await functions.createExecution('send-assignment-email', payload, false, '/', ExecutionMethod.POST);
       setSaved(true);
     } catch (funcErr) {
       console.error('Error invocando función de correos:', funcErr);

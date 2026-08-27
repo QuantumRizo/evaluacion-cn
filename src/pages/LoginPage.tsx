@@ -1,6 +1,7 @@
 import { useState, type FormEvent, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { account } from '../lib/appwrite';
 
 export default function LoginPage() {
   const { login, user, employee, isAdmin, isLoading } = useAuth();
@@ -10,6 +11,16 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+
+  async function sendReset() {
+    if (!email.trim()) { setError('Escribe tu correo para enviarte el enlace.'); return; }
+    setError('');
+    try {
+      await account.resetPassword(email.trim(), `${window.location.origin}/restablecer-contrasena`);
+      setResetSent(true);
+    } catch { setError('No se pudo enviar el correo de recuperación.'); }
+  }
 
   // Redirect if already logged in
   useEffect(() => {
@@ -172,6 +183,8 @@ export default function LoginPage() {
                 'Iniciar sesión'
               )}
             </button>
+            <button type="button" onClick={sendReset} className="text-sm text-primary-600 hover:underline">¿Olvidaste tu contraseña?</button>
+            {resetSent && <p className="text-xs text-green-600 text-center">Si el correo existe, recibirás un enlace para cambiar la contraseña.</p>}
           </form>
           
           <div className="mt-8 flex items-center gap-4">

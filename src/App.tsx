@@ -8,6 +8,7 @@ import EvaluationsPage from './pages/EvaluationsPage';
 import EvaluationFormPage from './pages/EvaluationFormPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminReportPage from './pages/admin/AdminReportPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 
 function RootRedirect() {
   const { user, employee, isLoading, isAdmin } = useAuth();
@@ -22,6 +23,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={<RootRedirect />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/restablecer-contrasena" element={<ResetPasswordPage />} />
 
       {/* Employee routes - also accessible by admins */}
       <Route
