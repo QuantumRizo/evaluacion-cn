@@ -1,5 +1,4 @@
 import { createClient, type User } from '@supabase/supabase-js';
-import { DB_ID } from './constants';
 
 // Temporary compatibility facade: the UI can keep its existing data calls while
 // storage and authentication are served by Supabase.
@@ -36,6 +35,7 @@ interface QueryBuilder {
   order: (field: string, options: { ascending: boolean }) => QueryBuilder;
   limit: (value: number) => QueryBuilder;
   gt: (field: string, value: unknown) => QueryBuilder;
+  range: (from: number, to: number) => QueryBuilder;
 }
 interface ListResult { data: Record<string, unknown>[] | null; error: Error | null; count: number | null }
 const mapField = (field: string) => ({ '$id': 'id', '$createdAt': 'created_at', '$updatedAt': 'updated_at' }[field] ?? field);
@@ -60,4 +60,18 @@ export const databases = {
   async updateTransaction(id: string, commit: boolean, rollback = false) { void id; void commit; void rollback; },
 };
 export const functions = { async createExecution(name: string, body: string, ...args: unknown[]) { void args; const { data, error } = await supabase.functions.invoke(name, { body: JSON.parse(body) }); if (error) throw error; return data; } };
-export async function fetchAllDocuments<T>(collectionId: string, queries: QuerySpec[] = []): Promise<T[]> { const { documents } = await databases.listDocuments<T>(DB_ID, collectionId, queries); return documents; }
+export async function fetchAllDocuments<T>(collectionId: string, queries: QuerySpec[] = []): Promise<T[]> {
+  const all: T[] = [];
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const request = applyQueries(
+      supabase.from(collectionId).select('*', { count: 'exact' }) as unknown as QueryBuilder,
+      queries.filter((query) => query.kind !== 'limit' && query.kind !== 'cursor'),
+    );
+    const { data, error } = await (request.range(offset, offset + pageSize - 1) as unknown as Promise<ListResult>);
+    if (error) throw error;
+    const page = (data ?? []).map((row) => fromRow<T>(row));
+    all.push(...page);
+    if (page.length < pageSize) return all;
+  }
+}
